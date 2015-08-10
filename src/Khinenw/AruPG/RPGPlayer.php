@@ -28,22 +28,32 @@ class RPGPlayer{
 	 * add /skill command : shows description of current holding item
 	 * add /si command : invest 1 sp to skill whose item is current holding item
 	 * add ui
+	 * add mana regeneration
+	 * add skill level saving
+	 * remove skill items when finish
+	 * prevent skill items deleting
 	 */
-	public function __construct(Player $player, array $skills = [], $job = 0, array $status = null, $mana = -1){
+	public function __construct(Player $player, array $skills = [], $job = 0, array $status = [], $mana = -1){
+		$this->player = $player;
+		$this->skills = [];
 		foreach($skills as $skillId){
 			$skill = SkillManager::getSkill($skillId);
-			$skills[$skill->getItem()->getId().";".$skill->getItem()->getDamage()] = $skill;
+			$skill->setPlayer($this);
+			$this->skills[$skill->getItem()->getId().";".$skill->getItem()->getDamage()] = $skill;
+			if(!$this->player->getInventory()->contains($skill->getItem())){
+				$this->player->getInventory()->addItem($skill->getItem());
+			}
+			$skill->onPassiveInit();
 		}
 
 		$this->job = JobManager::getJob($job);
-		$this->player = $player;
 		$this->mana = $mana;
 
 		$this->status = new PlayerStatus($status);
 		$this->armorStatus = new Status([]);
 
 		if($this->mana === -1){
-			$this->mana = $this->status["maxmp"];
+			$this->mana = $this->status->maxMp;
 		}
 	}
 
@@ -66,8 +76,11 @@ class RPGPlayer{
 		if(!$skillAcquireEvent->isCancelled()){
 			$this->skills[$skill->getId()] = $skill;
 			$item = $skill->getItem();
-			$this->player->getInventory()->addItem($item);
+			if(!$this->player->getInventory()->contains($item)){
+				$this->player->getInventory()->addItem($item);
+			}
 		}
+		$skill->onPassiveInit();
 	}
 
 	public function changeJob(Job $job){
@@ -78,13 +91,14 @@ class RPGPlayer{
 		$this->job = $job;
 
 		foreach($this->skills as $item => $skillId){
-			Server::getInstance()->getPluginManager()->callEvent(new SkillDiscardEvent(ToAruPG::getInstance(), SkillManager::getSkill($skillId)));
+			Server::getInstance()->getPluginManager()->callEvent(new SkillDiscardEvent(ToAruPG::getInstance(), $this->skills[$item]));
 			unset($this->skills[$item]);
 		}
 
 		foreach($job->getSkills() as $skill){
 			Server::getInstance()->getPluginManager()->callEvent(new SkillAcquireEvent(ToAruPG::getInstance(), $skill));
-			$skills[$skill->getItem()->getId().";".$skill->getItem()->getDamage()] = $skill;
+			$playerSkill = $skill->setPlayer($this);
+			$skills[$skill->getItem()->getId().";".$skill->getItem()->getDamage()] = $playerSkill;
 		}
 	}
 
@@ -94,8 +108,14 @@ class RPGPlayer{
 		$needXp = $this->status->level * $this->status->level * 1000 + 1000;
 
 		if($this->status->xp > $needXp){
-			$this->status->level++;
+			$this->levelUp();
 		}
+	}
+
+	public function levelUp(){
+		$this->status->level++;
+		$this->status->sp += 3;
+		$this->status->ap += 3;
 	}
 
 	public function setArmorStatus(Status $status){
@@ -135,4 +155,7 @@ class RPGPlayer{
 		return $rpgPlayer;
 	}
 
+	public function getStatus(){
+		return $this->status;
+	}
 }

@@ -1,0 +1,40 @@
+name: "ToAruPG"
+author: Khinenw
+version: 0.1.0 beta
+description: "An open-source project of RPG minigame."
+main: Khinenw\AruPG\ToAruPG
+api: 1.12.0
+
+permissions:
+  toarupg.*:
+    description: "The permission for using features."
+    default: true
+    children:
+      toarupg.skill:
+        description: "The permission for getting description of skill."
+        default: true
+
+      toarupg.isp:
+        description: "The permission for investing SP."
+        default: op
+
+      toarupg.iap:
+        description: "The permission for investing AP."
+        default: op
+
+commands:
+  skill:
+    description: "Gets description of current holding skill."
+    usage: "/skill"
+    permission: toarupg.skill
+
+  isp:
+    description: "Invests SP to current holding skill."
+    usage: "/isp"
+    permission: toarupg.isp
+
+  iap:
+    description: "Invests AP."
+    usage: "/iap [status]"
+    permission: toarupg.iap
+

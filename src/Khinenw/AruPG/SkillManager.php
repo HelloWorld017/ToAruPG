@@ -13,6 +13,7 @@ class SkillManager{
 	public static function registerSkill(Skill $skill){
 		if(!array_key_exists($skill->getId(), self::$skills)){
 			self::$skills[$skill->getId()] = $skill;
+			$skill->__init();
 			return true;
 		}
 		return false;
@@ -24,6 +25,7 @@ class SkillManager{
 	 */
 	public static function forceRegisterSkill(Skill $skill){
 		self::$skills[$skill->getId()] = $skill;
+		$skill->__init();
 	}
 
 	/**
@@ -32,6 +34,6 @@ class SkillManager{
 	 * @return Skill|null If the skill is registered, it returns the skill. Otherwise, it returns null
 	 */
 	public static function getSkill($skillId){
-
+		return isset(self::$skills[$skillId]) ? self::$skills[$skillId] : null;
 	}
 }

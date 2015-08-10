@@ -6,6 +6,7 @@ use pocketmine\command\Command;
 use pocketmine\command\CommandSender;
 use pocketmine\event\Listener;
 use pocketmine\event\player\PlayerInteractEvent;
+use pocketmine\event\player\PlayerItemHeldEvent;
 use pocketmine\event\player\PlayerJoinEvent;
 use pocketmine\event\player\PlayerQuitEvent;
 use pocketmine\Player;
@@ -31,6 +32,7 @@ class ToAruPG extends PluginBase implements Listener{
 		@mkdir($this->getDataFolder());
 		self::$instance = $this;
 		self::$translation = (new Config($this->getDataFolder()."translation.yml", Config::YAML))->getAll();
+		$this->players = [];
 		$this->getServer()->getPluginManager()->registerEvents($this, $this);
 	}
 
@@ -47,6 +49,60 @@ class ToAruPG extends PluginBase implements Listener{
 		}
 		switch($command->getName()){
 			case "skill":
+				if(!$this->isValidPlayer($sender)){
+					$sender->sendMessage(TextFormat::RED.self::getTranslation("NOT_VALID_PLAYER"));
+					return;
+				}
+
+				$skill = $this->players[$sender->getName()]->getSkillByItem($sender->getInventory()->getItemInHand());
+				if($skill === null){
+					$sender->sendMessage(TextFormat::RED.self::getTranslation("NO_SKILL_ITEM"));
+					return;
+				}
+				/**
+				 * @var $skill Skill
+				 */
+
+				$sender->sendMessage(TextFormat::GREEN."==========".self::getTranslation($skill->getName())."Lv.".$skill->getLevel()." ==========\n".$skill->getSkillDescription());
+				break;
+
+			case "isp":
+				if(!$this->isValidPlayer($sender)){
+					$sender->sendMessage(TextFormat::RED.self::getTranslation("NOT_VALID_PLAYER"));
+					return;
+				}
+
+				if($this->players[$sender->getName()]->getStatus()->sp < 1){
+					$sender->sendMessage(TextFormat::RED.self::getTranslation("INSUFFICIENT_SP"));
+					return;
+				}
+
+				$skill = $this->players[$sender->getName()]->getSkillByItem($sender->getInventory()->getItemInHand());
+				if($skill === null){
+					$sender->sendMessage(TextFormat::RED.self::getTranslation("NO_SKILL_ITEM"));
+					return;
+				}
+
+				/**
+				 * @var $skill Skill
+				 */
+
+				if($skill->canInvestSP(1)){
+					$skill->investSP(1);
+					$sender->sendMessage(TextFormat::AQUA.self::getTranslation("INVESTED_SP"));
+				}
+				break;
+
+			case "iap":
+				if(!$this->isValidPlayer($sender)){
+					$sender->sendMessage(TextFormat::RED.self::getTranslation("NOT_VALID_PLAYER"));
+					return;
+				}
+
+				if($this->players[$sender->getName()]->getStatus()->sp < 1){
+					$sender->sendMessage(TextFormat::RED.self::getTranslation("INSUFFICIENT_AP"));
+					return;
+				}
 		}
 	}
 
@@ -64,11 +120,13 @@ class ToAruPG extends PluginBase implements Listener{
 
 	public function onPlayerQuit(PlayerQuitEvent $event){
 		if($this->isValidPlayer($event->getPlayer())){
+			file_put_contents($this->getDataFolder().$event->getPlayer()->getName().".player", serialize($this->players[$event->getPlayer()->getName()]->getSaveData()));
 			unset($this->players[$event->getPlayer()->getName()]);
 		}
 	}
 
 	public function onPlayerInteract(PlayerInteractEvent $event){
+		if($event->getAction() === PlayerInteractEvent::RIGHT_CLICK_BLOCK) return;
 		if($this->isValidPlayer($event->getPlayer())){
 			$player = $this->players[$event->getPlayer()->getName()];
 			$skill = $player->getSkillByItem($event->getItem());
@@ -80,7 +138,22 @@ class ToAruPG extends PluginBase implements Listener{
 					if($skill->onActiveUse($event)){
 						$player->mana -= $skill->getRequiredMana();
 					}
+				}else{
+					$player->getPlayer()->sendMessage(TextFormat::RED."NO_MANA");
 				}
+			}
+		}
+	}
+
+	public function onPlayerItemHeld(PlayerItemHeldEvent $event){
+		if($this->isValidPlayer($event->getPlayer())){
+			$player = $this->players[$event->getPlayer()->getName()];
+			$skill = $player->getSkillByItem($event->getItem());
+			/**
+			 * @var $skill Skill
+			 */
+			if($skill !== null){
+				$event->getPlayer()->sendPopup(self::getTranslation($skill->getName()));
 			}
 		}
 	}
@@ -100,5 +173,10 @@ class ToAruPG extends PluginBase implements Listener{
 		}
 
 		return $translation;
+	}
+
+
+	public static function addTranslation($key, $value){
+		self::$translation[$key] = $value;
 	}
 }

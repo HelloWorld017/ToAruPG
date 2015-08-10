@@ -33,6 +33,6 @@ class JobManager{
 	 * @return Job|null If the job is registered, it returns the job. Otherwise, it returns null
 	 */
 	public static function getJob($jobId){
-
+		return isset(self::$jobs[$jobId]) ? self::$jobs[$jobId] : null;
 	}
 }

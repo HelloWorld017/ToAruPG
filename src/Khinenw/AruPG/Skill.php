@@ -18,7 +18,9 @@ interface Skill{
 	 */
 	public static function getId();
 
-	public function __construct(RPGPlayer $player);
+	public function __construct(RPGPlayer $player = null);
+
+	public function setPlayer(RPGPlayer $player);
 
 	/**
 	 * @method void onPassiveInit() Called when passive skill init (Player Joined, Player Acquires Skill, etc...)
@@ -43,6 +45,13 @@ interface Skill{
 	 * @return int Returns required XP Level for skill acquirement
 	 */
 	public static function getRequiredLevel();
+
+	/**
+	 * @method boolean canBeAcquired(RPGPlayer $player) Returns can this skill is acquired by player
+	 * @param RPGPlayer $player An player who intended to acquire this skill
+	 * @return boolean Returns can this skill is acquired by player
+	 */
+	public static function canBeAcquired(RPGPlayer $player);
 
 	/**
 	 * @method string getName() Returns name of the skill

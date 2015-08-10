@@ -26,8 +26,9 @@ interface Skill{
 	public function onPassiveInit();
 
 	/**
-	 * @method void onActiveUse(PlayerInteractEvent $event) Called when player interacts while holding skill item
+	 * @method boolean onActiveUse(PlayerInteractEvent $event) Called when player interacts while holding skill item
 	 * @param PlayerInteractEvent $event An event which used by player
+	 * @return boolean whether skill used successfully (returning true decreases mana)
 	 */
 	public function onActiveUse(PlayerInteractEvent $event);
 
@@ -42,12 +43,6 @@ interface Skill{
 	 * @return int Returns required XP Level for skill acquirement
 	 */
 	public static function getRequiredLevel();
-
-	/**
-	 * @method int[] getRequiredJob() Required Job ID list for skill acquirement
-	 * @return int[] Returns list of ID of Jobs which can acquire this skill
-	 */
-	public static function getRequiredJob();
 
 	/**
 	 * @method string getName() Returns name of the skill

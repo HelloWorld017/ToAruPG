@@ -8,10 +8,10 @@ class PlayerStatus extends Status{
 	public $xp = 0;
 	public $level = 0;
 
-	const SP = 5;
-	const AP = 6;
-	const XP = 7;
-	const LEVEL = 8;
+	const SP = "sp";
+	const AP = "ap";
+	const XP = "xp";
+	const LEVEL = "level";
 
 	public function __construct(array $status = []){
 		parent::__construct($status);
@@ -19,5 +19,20 @@ class PlayerStatus extends Status{
 		$this->ap = (isset($status[self::AP])) ? $status[self::AP] : $this->ap;
 		$this->xp = (isset($status[self::XP])) ? $status[self::XP] : $this->xp;
 		$this->level = (isset($status[self::LEVEL])) ? $status[self::LEVEL] : $this->level;
+	}
+
+	public function getSaveData(){
+		return [
+			self::MAX_HP => $this->maxHp,
+			self::MAX_MP => $this->maxMp,
+			self::STR => $this->str,
+			self::INT => $this->int,
+			self::DEX => $this->dex,
+			self::LUK => $this->luk,
+			self::SP => $this->sp,
+			self::AP => $this->ap,
+			self::XP => $this->xp,
+			self::LEVEL => $this->level
+		];
 	}
 }

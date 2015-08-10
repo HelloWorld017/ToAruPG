@@ -9,12 +9,12 @@ class Status{
 	public $dex = 10;
 	public $luk = 10;
 
-	const MAX_HP = 0;
-	const MAX_MP = 1;
-	const STR = 2;
-	const INT = 3;
-	const DEX = 4;
-	const LUK = 5;
+	const MAX_HP = "maxhp";
+	const MAX_MP = "maxmp";
+	const STR = "str";
+	const INT = "int";
+	const DEX = "dex";
+	const LUK = "luk";
 
 	public function __construct(array $status = []){
 		$this->maxHp = (isset($status[self::MAX_HP])) ? $status[self::MAX_HP] : $this->maxHp;
@@ -23,5 +23,16 @@ class Status{
 		$this->int = (isset($status[self::INT])) ? $status[self::INT] : $this->int;
 		$this->dex = (isset($status[self::DEX])) ? $status[self::DEX] : $this->dex;
 		$this->luk = (isset($status[self::LUK])) ? $status[self::LUK] : $this->luk;
+	}
+
+	public function getSaveData(){
+		return [
+			self::MAX_HP => $this->maxHp,
+			self::MAX_MP => $this->maxMp,
+			self::STR => $this->str,
+			self::INT => $this->int,
+			self::DEX => $this->dex,
+			self::LUK => $this->luk
+		];
 	}
 }

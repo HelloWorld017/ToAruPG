@@ -4,6 +4,7 @@ namespace Khinenw\AruPG;
 
 use Khinenw\AruPG\event\job\JobChangeEvent;
 use Khinenw\AruPG\event\skill\SkillAcquireEvent;
+use Khinenw\AruPG\event\skill\SkillDiscardEvent;
 use pocketmine\item\Item;
 use pocketmine\Player;
 use pocketmine\Server;
@@ -15,17 +16,18 @@ class RPGPlayer{
 	private $player;
 	private $status;
 	private $armorStatus;
-	private $mana;
+	public $mana;
 
 	/*
 	 * TODO add Mana Potion
 	 * add str / 10 -> melee damage
-	 * add LevelUp
 	 * add Skill/Job shop
 	 * add Hestia Knife
 	 * add AP, SP Stat
 	 * add player saving
 	 * add /skill command : shows description of current holding item
+	 * add /si command : invest 1 sp to skill whose item is current holding item
+	 * add ui
 	 */
 	public function __construct(Player $player, array $skills = [], $job = 0, array $status = null, $mana = -1){
 		foreach($skills as $skillId){
@@ -35,7 +37,6 @@ class RPGPlayer{
 
 		$this->job = JobManager::getJob($job);
 		$this->player = $player;
-		$this->status = $status;
 		$this->mana = $mana;
 
 		$this->status = new PlayerStatus($status);
@@ -52,7 +53,10 @@ class RPGPlayer{
 	}
 
 	public function hasSkill($skillId){
-		return array_key_exists($skillId, $this->skills);
+		$skill = SkillManager::getSkill($skillId);
+		if($skill === null) return false;
+		$item = $skill->getItem();
+		return array_key_exists($item->getId().";".$item->getDamage(), $this->skills);
 	}
 
 	public function acquireSkill(Skill $skill){
@@ -67,12 +71,20 @@ class RPGPlayer{
 	}
 
 	public function changeJob(Job $job){
-		//TODO discard skill which cannot be used by player
 		$jobChangeEvent = new JobChangeEvent(ToAruPG::getInstance(), $this->job, $job);
 		Server::getInstance()->getPluginManager()->callEvent($jobChangeEvent);
 
-		if(!$jobChangeEvent->isCancelled()){
-			$this->job = $job;
+		if($jobChangeEvent->isCancelled()) return;
+		$this->job = $job;
+
+		foreach($this->skills as $item => $skillId){
+			Server::getInstance()->getPluginManager()->callEvent(new SkillDiscardEvent(ToAruPG::getInstance(), SkillManager::getSkill($skillId)));
+			unset($this->skills[$item]);
+		}
+
+		foreach($job->getSkills() as $skill){
+			Server::getInstance()->getPluginManager()->callEvent(new SkillAcquireEvent(ToAruPG::getInstance(), $skill));
+			$skills[$skill->getItem()->getId().";".$skill->getItem()->getDamage()] = $skill;
 		}
 	}
 
@@ -84,6 +96,43 @@ class RPGPlayer{
 		if($this->status->xp > $needXp){
 			$this->status->level++;
 		}
+	}
+
+	public function setArmorStatus(Status $status){
+		$this->armorStatus = $status;
+	}
+
+	public function getPlayer(){
+		return $this->player;
+	}
+
+	public function getCurrentJob(){
+		return $this->job;
+	}
+
+	public function getSaveData(){
+		$saveData = [
+			"skill" => [],
+			"job" => $this->job->getId(),
+			"mana" => $this->mana,
+			"armorStatus" => $this->armorStatus->getSaveData(),
+			"status" => $this->status->getSaveData()
+		];
+
+		/**
+		 * @var $skill Skill
+		 */
+		foreach($this->skills as $item => $skill){
+			$saveData["skill"][] = $skill->getId();
+		}
+
+		return $saveData;
+	}
+
+	public static function getFromSaveData(Player $player, array $saveData){
+		$rpgPlayer = new self($player, $saveData["skill"], $saveData["job"], $saveData["mana"], $saveData["status"]);
+		$rpgPlayer->setArmorStatus(new Status($saveData["armorStatus"]));
+		return $rpgPlayer;
 	}
 
 }

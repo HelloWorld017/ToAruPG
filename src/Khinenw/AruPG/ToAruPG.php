@@ -3,6 +3,7 @@
 /*
  * ////////////////API 95% Complete////////////////
  * TODO add EXP Packet Sending
+ * TODO add Translation
  * DONE complete Event API
  * WONTFIX add str / 10 -> melee damage
  * DONE add AP, SP Stat
@@ -67,6 +68,7 @@ class ToAruPG extends PluginBase implements Listener{
 		self::$instance = $this;
 		self::$translation = (new Config($this->getDataFolder()."translation.yml", Config::YAML))->getAll();
 		$this->players = [];
+		JobManager::registerJob(new JobAdventure());
 		$this->getServer()->getScheduler()->scheduleRepeatingTask(new HealTask($this), 1200);
 		$this->getServer()->getScheduler()->scheduleRepeatingTask(new UITask($this), 15);
 		$this->getServer()->getPluginManager()->registerEvents($this, $this);
@@ -325,8 +327,16 @@ class ToAruPG extends PluginBase implements Listener{
 		return $translation;
 	}
 
+	public function getRPGPlayerByName($player){
+		return ($this->isValidPlayer($player)) ? $this->players[$player] : null;
+	}
 
 	public static function addTranslation($key, $value){
+		if(isset(self::$translation[$key])) return;
 		self::$translation[$key] = $value;
+
+		$translate = (new Config(self::getInstance()->getDataFolder()."translation.yml", Config::YAML));
+		$translate->setAll(self::$translation);
+		$translate->save();
 	}
 }

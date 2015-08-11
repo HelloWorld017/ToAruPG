@@ -1,7 +1,7 @@
-name: "ToAruPG"
+name: "TAPGAPI"
 author: Khinenw
 version: 0.1.0 beta
-description: "An open-source project of RPG minigame."
+description: "An open-source project of API of RPG minigame [To aru PG]."
 main: Khinenw\AruPG\ToAruPG
 api: 1.12.0
 

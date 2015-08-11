@@ -5,6 +5,8 @@ namespace Khinenw\AruPG;
 use Khinenw\AruPG\event\job\JobChangeEvent;
 use Khinenw\AruPG\event\skill\SkillAcquireEvent;
 use Khinenw\AruPG\event\skill\SkillDiscardEvent;
+use Khinenw\AruPG\event\status\ArmorChangeEvent;
+use Khinenw\AruPG\event\status\PlayerLevelupEvent;
 use pocketmine\item\Item;
 use pocketmine\Player;
 use pocketmine\Server;
@@ -19,23 +21,6 @@ class RPGPlayer{
 	public $mana;
 	public $health;
 
-	/*
-	 * TODO add Mana Potion
-	 * WONTFIX add str / 10 -> melee damage
-	 * TODO add Skill/Job shop
-	 * TODO add Hestia Knife
-	 * TODO add AP, SP Stat
-	 * DONE add player saving
-	 * DONE add /skill command : shows description of current holding item
-	 * DONE add /si command : invest 1 sp to skill whose item is current holding item
-	 * DONE add ui
-	 * DONE add mana regeneration
-	 * DONE add skill level saving
-	 * TODO remove skill items when finish
-	 * TODO prevent skill items deleting
-	 * TODO mana reset when player death
-	 * FIXME set health won't send packet
-	 */
 	public function __construct(Player $player, array $skills = [], $job = 0, array $status = [], $mana = -1, $health = -1){
 		$this->player = $player;
 		$this->skills = [];
@@ -48,9 +33,6 @@ class RPGPlayer{
 			}
 			$this->skills[$skill->getItem()->getId().";".$skill->getItem()->getDamage()] = $skill;
 
-			if(!$this->player->getInventory()->contains($skill->getItem())){
-				$this->player->getInventory()->addItem($skill->getItem());
-			}
 			$skill->onPassiveInit();
 		}
 
@@ -133,6 +115,7 @@ class RPGPlayer{
 	}
 
 	public function levelUp(){
+		Server::getInstance()->getPluginManager()->callEvent(new PlayerLevelupEvent(ToAruPG::getInstance(), $this));
 		$this->status->level++;
 		$this->status->sp += 3;
 		$this->status->ap += 3;
@@ -145,6 +128,7 @@ class RPGPlayer{
 	}
 
 	public function setArmorStatus(Status $status){
+		Server::getInstance()->getPluginManager()->callEvent(new ArmorChangeEvent(ToAruPG::getInstance(), $this, $this->armorStatus, $status));
 		$this->armorStatus = $status;
 	}
 

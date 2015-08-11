@@ -1,14 +1,41 @@
 <?php
 
+/*
+ * ////////////////API 95% Complete////////////////
+ * TODO add EXP Packet Sending
+ * DONE complete Event API
+ * WONTFIX add str / 10 -> melee damage
+ * DONE add AP, SP Stat
+ * DONE add player saving
+ * DONE add /skill command : shows description of current holding item
+ * DONE add /si command : invest 1 sp to skill whose item is current holding item
+ * DONE add ui
+ * DONE add mana regeneration
+ * DONE add skill level saving
+ * WONTFIX remove skill items when finish
+ * DONE prevent skill items deleting
+ * DONE mana reset when player death
+ * POCKETMINEBUG set health won't send packet
+ *
+ * ////////////////External Plugins////////////////
+ * TODO add Dungeon
+ * TODO add Potions
+ * TODO add Jobs/Skills
+ * TODO add Skill/Job shop
+ * TODO add Hestia Knife
+ */
+
 namespace Khinenw\AruPG;
 
-use Khinenw\AruPG\event\status\XPChangeEvent;
+use Khinenw\AruPG\event\status\StatusInvestEvent;
 use Khinenw\AruPG\task\HealTask;
 use Khinenw\AruPG\task\UITask;
 use pocketmine\command\Command;
 use pocketmine\command\CommandSender;
 use pocketmine\event\entity\EntityDamageEvent;
 use pocketmine\event\Listener;
+use pocketmine\event\player\PlayerDeathEvent;
+use pocketmine\event\player\PlayerDropItemEvent;
 use pocketmine\event\player\PlayerInteractEvent;
 use pocketmine\event\player\PlayerItemHeldEvent;
 use pocketmine\event\player\PlayerJoinEvent;
@@ -99,6 +126,7 @@ class ToAruPG extends PluginBase implements Listener{
 				if($skill->canInvestSP(1)){
 					$skill->investSP(1);
 					$sender->sendMessage(TextFormat::AQUA.self::getTranslation("INVESTED_SP"));
+					$this->getServer()->getPluginManager()->callEvent(new StatusInvestEvent($this, $this->players[$sender->getName()], StatusInvestEvent::SKILL, $skill->getId()));
 				}
 				break;
 
@@ -128,13 +156,18 @@ class ToAruPG extends PluginBase implements Listener{
 
 				if($lower === "maxhp"){
 					$this->players[$sender->getName()]->getStatus()->setMaxHp($this->players[$sender->getName()]->getStatus()->getMaxHp() + 20);
+					$lower = "maxHp";
 				}elseif($lower === "maxmp"){
 					$this->players[$sender->getName()]->getStatus()->maxMp += 100;
+					$lower = "maxMp";
 				}else{
 					$this->players[$sender->getName()]->getStatus()->$lower++;
 				}
 
+				$this->getServer()->getPluginManager()->callEvent(new StatusInvestEvent($this, $this->players[$sender->getName()], $lower));
 				$this->players[$sender->getName()]->getStatus()->ap--;
+
+				$sender->sendMessage(TextFormat::AQUA.self::getTranslation("INVESTED_AP"));
 				break;
 		}
 
@@ -175,8 +208,30 @@ class ToAruPG extends PluginBase implements Listener{
 			$event->setDamage($event->getFinalDamage() - ($formerHealth - 20));
 		}
 
-		if(($player->getHealth() - $event->getFinalDamage()) <= 0){
-			$this->players[$player->getName()]->health = $this->players[$player->getName()]->getStatus()->getMaxHp();
+	}
+
+	public function onPlayerDeath(PlayerDeathEvent $event){
+		if(!$this->isValidPlayer($event->getEntity())) return;
+		$rpgPlayer = $this->players[$event->getEntity()->getName()];
+
+		$rpgPlayer->health = $rpgPlayer->getFinalValue(Status::MAX_HP);
+		$rpgPlayer->mana = $rpgPlayer->getFinalValue(Status::MAX_MP);
+
+		$drops = [];
+		foreach($event->getDrops() as $item){
+			if($rpgPlayer->getSkillByItem($item) === null){
+				$drops[] = $item;
+			}
+		}
+
+		$event->setDrops($drops);
+	}
+
+	public function onPlayerItemDrop(PlayerDropItemEvent $event){
+		if(!$this->isValidPlayer($event->getPlayer())) return;
+
+		if($this->players[$event->getPlayer()->getName()]->getSkillByItem($event->getItem()) !== null){
+			$event->setCancelled();
 		}
 	}
 
@@ -211,10 +266,6 @@ class ToAruPG extends PluginBase implements Listener{
 				$event->getPlayer()->sendPopup(self::getTranslation($skill->getName()));
 			}
 		}
-	}
-
-	public function onXpChange(XPChangeEvent $event){
-		//TODO send EXPPacket
 	}
 
 	public function heal(){

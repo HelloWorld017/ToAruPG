@@ -72,6 +72,12 @@ interface Skill{
 	public function getLevel();
 
 	/**
+	 * @method void setLevel() Sets level of the skill
+	 * @param int $level level which will be set
+	 */
+	public function setLevel($level);
+
+	/**
 	 * @method boolean canInvestSP(int $sp) Returns whether user can invest SP to this skill.
 	 * @param int $sp Amount of SP which will be invested.
 	 * @return boolean Returns whether user can invest SP to this skill.

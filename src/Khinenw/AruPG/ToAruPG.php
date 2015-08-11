@@ -2,6 +2,9 @@
 
 namespace Khinenw\AruPG;
 
+use Khinenw\AruPG\event\status\XPChangeEvent;
+use Khinenw\AruPG\task\HealTask;
+use Khinenw\AruPG\task\UITask;
 use pocketmine\command\Command;
 use pocketmine\command\CommandSender;
 use pocketmine\event\Listener;
@@ -24,6 +27,9 @@ class ToAruPG extends PluginBase implements Listener{
 	 */
 	private $players;
 
+	/**
+	 * @return ToAruPG
+	 */
 	public static function getInstance(){
 		return self::$instance;
 	}
@@ -33,12 +39,14 @@ class ToAruPG extends PluginBase implements Listener{
 		self::$instance = $this;
 		self::$translation = (new Config($this->getDataFolder()."translation.yml", Config::YAML))->getAll();
 		$this->players = [];
+		$this->getServer()->getScheduler()->scheduleRepeatingTask(new HealTask($this), 1200);
+		$this->getServer()->getScheduler()->scheduleRepeatingTask(new UITask($this), 15);
 		$this->getServer()->getPluginManager()->registerEvents($this, $this);
 	}
 
 	public function onDisable(){
 		foreach($this->players as $name => $rpgPlayer){
-			file_put_contents($this->getDataFolder().$rpgPlayer->getPlayer()->getName().".player", serialize($rpgPlayer->getSaveData()));
+			file_put_contents($this->getDataFolder().$rpgPlayer->getPlayer()->getName().".player", json_encode($rpgPlayer->getSaveData()));
 		}
 	}
 
@@ -111,7 +119,7 @@ class ToAruPG extends PluginBase implements Listener{
 		$dataFile = $this->getDataFolder().$event->getPlayer()->getName().".player";
 
 		if(is_file($dataFile)){
-			$data = unserialize(file_get_contents($dataFile));
+			$data = json_decode(file_get_contents($dataFile), true);
 			$this->players[$event->getPlayer()->getName()] = new RPGPlayer($event->getPlayer(), $data["skill"], $data["job"], $data["status"], $data["mana"]);
 		}else{
 			$this->players[$event->getPlayer()->getName()] = new RPGPlayer($event->getPlayer());
@@ -120,7 +128,7 @@ class ToAruPG extends PluginBase implements Listener{
 
 	public function onPlayerQuit(PlayerQuitEvent $event){
 		if($this->isValidPlayer($event->getPlayer())){
-			file_put_contents($this->getDataFolder().$event->getPlayer()->getName().".player", serialize($this->players[$event->getPlayer()->getName()]->getSaveData()));
+			file_put_contents($this->getDataFolder().$event->getPlayer()->getName().".player", json_encode($this->players[$event->getPlayer()->getName()]->getSaveData()));
 			unset($this->players[$event->getPlayer()->getName()]);
 		}
 	}
@@ -156,6 +164,43 @@ class ToAruPG extends PluginBase implements Listener{
 				$event->getPlayer()->sendPopup(self::getTranslation($skill->getName()));
 			}
 		}
+	}
+
+	public function onXpChange(XPChangeEvent $event){
+		//TODO send EXPPacket
+	}
+
+	public function heal(){
+		foreach($this->players as $playerName => $rpgPlayer){
+			$hp = $rpgPlayer->getPlayer()->getHealth() + ($rpgPlayer->getFinalValue(Status::MAX_HP) / 10);
+			$mp = $rpgPlayer->mana + ($rpgPlayer->getFinalValue(Status::MAX_MP) / 10);
+			$rpgPlayer->mana = ($mp > $rpgPlayer->getFinalValue(Status::MAX_MP)) ? $rpgPlayer->getFinalValue(Status::MAX_MP) : $mp;
+			$rpgPlayer->getPlayer()->setHealth(($hp > $rpgPlayer->getFinalValue(Status::MAX_HP)) ? $rpgPlayer->getFinalValue(Status::MAX_HP) : $hp);
+		}
+	}
+
+	public function showUi(){
+		foreach($this->players as $name => $rpg){
+			$rpg->getPlayer()->sendTip(
+				TextFormat::RED.
+				$this->drawProgress($rpg->getPlayer()->getHealth(), $rpg->getFinalValue(Status::MAX_HP), 30, self::getTranslation("HP"), TextFormat::RED, TextFormat::WHITE)."\n".
+				TextFormat::BLUE.
+				$this->drawProgress($rpg->mana, $rpg->getFinalValue(Status::MAX_MP), 30, self::getTranslation("MP"), TextFormat::BLUE, TextFormat::WHITE)
+			);
+		}
+	}
+
+	public function drawProgress($current, $max, $step, $text, $color, $secondColor){
+		$progress = floor($current / $max * $step);
+		$text = " ".$text."   ".$color;
+
+		for($i = 0; $i < $step; $i++){
+			if($i == $progress) $text .= $secondColor;
+			$text .= ":";
+		}
+
+		$text .= " ".$current."/".$max;
+		return $text;
 	}
 
 	public function isValidPlayer(Player $player){

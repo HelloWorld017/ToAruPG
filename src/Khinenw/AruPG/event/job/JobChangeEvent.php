@@ -11,6 +11,7 @@ class JobChangeEvent extends PluginEvent implements Cancellable{
 
 	private $oldJob;
 	private $newJob;
+	public static $handlerList;
 
 	public function __construct(Plugin $plugin, Job $oldJob, Job $newJob){
 		parent::__construct($plugin);

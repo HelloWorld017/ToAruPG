@@ -20,26 +20,33 @@ class RPGPlayer{
 
 	/*
 	 * TODO add Mana Potion
-	 * add str / 10 -> melee damage
-	 * add Skill/Job shop
-	 * add Hestia Knife
-	 * add AP, SP Stat
-	 * add player saving
-	 * add /skill command : shows description of current holding item
-	 * add /si command : invest 1 sp to skill whose item is current holding item
-	 * add ui
-	 * add mana regeneration
-	 * add skill level saving
-	 * remove skill items when finish
-	 * prevent skill items deleting
+	 * WONTFIX add str / 10 -> melee damage
+	 * TODO add Skill/Job shop
+	 * TODO add Hestia Knife
+	 * TODO add AP, SP Stat
+	 * DONE add player saving
+	 * DONE add /skill command : shows description of current holding item
+	 * DONE add /si command : invest 1 sp to skill whose item is current holding item
+	 * DONE add ui
+	 * DONE add mana regeneration
+	 * DONE add skill level saving
+	 * TODO remove skill items when finish
+	 * TODO prevent skill items deleting
+	 * TODO mana reset when player death
+	 * FIXME set health won't send packet
 	 */
 	public function __construct(Player $player, array $skills = [], $job = 0, array $status = [], $mana = -1){
 		$this->player = $player;
 		$this->skills = [];
-		foreach($skills as $skillId){
-			$skill = SkillManager::getSkill($skillId);
+		foreach($skills as $skillTag){
+			$skillData = explode(";", $skillTag);
+			$skill = SkillManager::getSkill($skillData[0]);
 			$skill->setPlayer($this);
+			if(count($skillData) > 1){
+				$skill->setLevel($skillData[1]);
+			}
 			$this->skills[$skill->getItem()->getId().";".$skill->getItem()->getDamage()] = $skill;
+
 			if(!$this->player->getInventory()->contains($skill->getItem())){
 				$this->player->getInventory()->addItem($skill->getItem());
 			}
@@ -49,12 +56,13 @@ class RPGPlayer{
 		$this->job = JobManager::getJob($job);
 		$this->mana = $mana;
 
-		$this->status = new PlayerStatus($status);
+		$this->status = new PlayerStatus($status, $this);
 		$this->armorStatus = new Status([]);
 
 		if($this->mana === -1){
 			$this->mana = $this->status->maxMp;
 		}
+		$this->player->setMaxHealth($this->getFinalValue(Status::MAX_HP));
 	}
 
 	public function getSkillByItem(Item $item){
@@ -103,11 +111,11 @@ class RPGPlayer{
 	}
 
 	public function addXp($amount){
-		$this->status->xp += $amount;
+		$this->status->setXp($this->status->getXp() + $amount);
 
 		$needXp = $this->status->level * $this->status->level * 1000 + 1000;
 
-		if($this->status->xp > $needXp){
+		if($this->status->getXp() > $needXp){
 			$this->levelUp();
 		}
 	}
@@ -116,6 +124,12 @@ class RPGPlayer{
 		$this->status->level++;
 		$this->status->sp += 3;
 		$this->status->ap += 3;
+		$this->status->setMaxHp($this->status->getMaxHp() + 20);
+		$this->status->maxMp += 100;
+	}
+
+	public function getFinalValue($statusKey){
+		return ($this->armorStatus->$statusKey + $this->status->$statusKey);
 	}
 
 	public function setArmorStatus(Status $status){
@@ -143,7 +157,7 @@ class RPGPlayer{
 		 * @var $skill Skill
 		 */
 		foreach($this->skills as $item => $skill){
-			$saveData["skill"][] = $skill->getId();
+			$saveData["skill"][] = $skill->getId().";".$skill->getLevel();
 		}
 
 		return $saveData;

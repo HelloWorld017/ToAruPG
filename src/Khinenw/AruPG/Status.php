@@ -9,8 +9,8 @@ class Status{
 	public $dex = 10;
 	public $luk = 10;
 
-	const MAX_HP = "maxhp";
-	const MAX_MP = "maxmp";
+	const MAX_HP = "maxHp";
+	const MAX_MP = "maxMp";
 	const STR = "str";
 	const INT = "int";
 	const DEX = "dex";
@@ -23,6 +23,14 @@ class Status{
 		$this->int = (isset($status[self::INT])) ? $status[self::INT] : $this->int;
 		$this->dex = (isset($status[self::DEX])) ? $status[self::DEX] : $this->dex;
 		$this->luk = (isset($status[self::LUK])) ? $status[self::LUK] : $this->luk;
+	}
+
+	public function getMaxHp(){
+		return $this->maxHp;
+	}
+
+	public function setMaxHp($maxHp){
+		$this->maxHp = $maxHp;
 	}
 
 	public function getSaveData(){

@@ -9,6 +9,7 @@ use pocketmine\plugin\Plugin;
 
 class SkillAcquireEvent extends PluginEvent implements Cancellable{
 	private $skill;
+	public static $handlerList;
 
 	public function __construct(Plugin $plugin, Skill $skill){
 		parent::__construct($plugin);

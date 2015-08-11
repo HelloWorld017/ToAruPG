@@ -17,6 +17,7 @@ class RPGPlayer{
 	private $status;
 	private $armorStatus;
 	public $mana;
+	public $health;
 
 	/*
 	 * TODO add Mana Potion
@@ -35,7 +36,7 @@ class RPGPlayer{
 	 * TODO mana reset when player death
 	 * FIXME set health won't send packet
 	 */
-	public function __construct(Player $player, array $skills = [], $job = 0, array $status = [], $mana = -1){
+	public function __construct(Player $player, array $skills = [], $job = 0, array $status = [], $mana = -1, $health = -1){
 		$this->player = $player;
 		$this->skills = [];
 		foreach($skills as $skillTag){
@@ -55,14 +56,25 @@ class RPGPlayer{
 
 		$this->job = JobManager::getJob($job);
 		$this->mana = $mana;
+		$this->health = -1;
 
 		$this->status = new PlayerStatus($status, $this);
-		$this->armorStatus = new Status([]);
+		$this->armorStatus = new Status([
+			Status::MAX_HP => 0,
+			Status::MAX_MP => 0,
+			Status::STR => 0,
+			Status::INT => 0,
+			Status::DEX => 0,
+			Status::LUK => 0
+		]);
 
 		if($this->mana === -1){
-			$this->mana = $this->status->maxMp;
+			$this->mana = $this->getFinalValue(Status::MAX_MP);
 		}
-		$this->player->setMaxHealth($this->getFinalValue(Status::MAX_HP));
+
+		if($this->health === -1){
+			$this->health = $this->getFinalValue(Status::MAX_HP);
+		}
 	}
 
 	public function getSkillByItem(Item $item){
@@ -150,7 +162,8 @@ class RPGPlayer{
 			"job" => $this->job->getId(),
 			"mana" => $this->mana,
 			"armorStatus" => $this->armorStatus->getSaveData(),
-			"status" => $this->status->getSaveData()
+			"status" => $this->status->getSaveData(),
+			"health" => $this->health
 		];
 
 		/**
@@ -164,7 +177,7 @@ class RPGPlayer{
 	}
 
 	public static function getFromSaveData(Player $player, array $saveData){
-		$rpgPlayer = new self($player, $saveData["skill"], $saveData["job"], $saveData["mana"], $saveData["status"]);
+		$rpgPlayer = new self($player, $saveData["skill"], $saveData["job"], $saveData["status"], $saveData["mana"], $saveData["health"]);
 		$rpgPlayer->setArmorStatus(new Status($saveData["armorStatus"]));
 		return $rpgPlayer;
 	}

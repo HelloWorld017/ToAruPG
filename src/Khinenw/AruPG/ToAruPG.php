@@ -7,6 +7,7 @@ use Khinenw\AruPG\task\HealTask;
 use Khinenw\AruPG\task\UITask;
 use pocketmine\command\Command;
 use pocketmine\command\CommandSender;
+use pocketmine\event\entity\EntityDamageEvent;
 use pocketmine\event\Listener;
 use pocketmine\event\player\PlayerInteractEvent;
 use pocketmine\event\player\PlayerItemHeldEvent;
@@ -53,19 +54,19 @@ class ToAruPG extends PluginBase implements Listener{
 	public function onCommand(CommandSender $sender, Command $command, $label, array $args){
 		if(!$sender instanceof Player){
 			$sender->sendMessage(TextFormat::RED.$this->getTranslation("MUST_INGAME"));
-			return;
+			return true;
 		}
 		switch($command->getName()){
 			case "skill":
 				if(!$this->isValidPlayer($sender)){
 					$sender->sendMessage(TextFormat::RED.self::getTranslation("NOT_VALID_PLAYER"));
-					return;
+					return true;
 				}
 
 				$skill = $this->players[$sender->getName()]->getSkillByItem($sender->getInventory()->getItemInHand());
 				if($skill === null){
 					$sender->sendMessage(TextFormat::RED.self::getTranslation("NO_SKILL_ITEM"));
-					return;
+					return true;
 				}
 				/**
 				 * @var $skill Skill
@@ -77,18 +78,18 @@ class ToAruPG extends PluginBase implements Listener{
 			case "isp":
 				if(!$this->isValidPlayer($sender)){
 					$sender->sendMessage(TextFormat::RED.self::getTranslation("NOT_VALID_PLAYER"));
-					return;
+					return true;
 				}
 
 				if($this->players[$sender->getName()]->getStatus()->sp < 1){
 					$sender->sendMessage(TextFormat::RED.self::getTranslation("INSUFFICIENT_SP"));
-					return;
+					return true;
 				}
 
 				$skill = $this->players[$sender->getName()]->getSkillByItem($sender->getInventory()->getItemInHand());
 				if($skill === null){
 					$sender->sendMessage(TextFormat::RED.self::getTranslation("NO_SKILL_ITEM"));
-					return;
+					return true;
 				}
 
 				/**
@@ -102,16 +103,42 @@ class ToAruPG extends PluginBase implements Listener{
 				break;
 
 			case "iap":
+				if(count($args) < 1) return false;
+
 				if(!$this->isValidPlayer($sender)){
 					$sender->sendMessage(TextFormat::RED.self::getTranslation("NOT_VALID_PLAYER"));
-					return;
+					return true;
 				}
 
 				if($this->players[$sender->getName()]->getStatus()->sp < 1){
 					$sender->sendMessage(TextFormat::RED.self::getTranslation("INSUFFICIENT_AP"));
-					return;
+					return true;
 				}
+
+				$lower = strtolower($args[0]);
+				if($lower !== "maxmp" && $lower !== "maxhp" && !isset($this->players[$sender->getName()]->getStatus()->$lower)){
+					$sender->sendMessage(TextFormat::RED.self::getTranslation("UNKNOWN_STATUS"));
+					return true;
+				}
+
+				if($lower === "ap" || $lower === "sp" || $lower === "xp"){
+					$sender->sendMessage(TextFormat::RED.self::getTranslation("INVALID_STATUS"));
+					return true;
+				}
+
+				if($lower === "maxhp"){
+					$this->players[$sender->getName()]->getStatus()->setMaxHp($this->players[$sender->getName()]->getStatus()->getMaxHp() + 20);
+				}elseif($lower === "maxmp"){
+					$this->players[$sender->getName()]->getStatus()->maxMp += 100;
+				}else{
+					$this->players[$sender->getName()]->getStatus()->$lower++;
+				}
+
+				$this->players[$sender->getName()]->getStatus()->ap--;
+				break;
 		}
+
+		return true;
 	}
 
 	public function onPlayerJoin(PlayerJoinEvent $event){
@@ -120,7 +147,7 @@ class ToAruPG extends PluginBase implements Listener{
 
 		if(is_file($dataFile)){
 			$data = json_decode(file_get_contents($dataFile), true);
-			$this->players[$event->getPlayer()->getName()] = new RPGPlayer($event->getPlayer(), $data["skill"], $data["job"], $data["status"], $data["mana"]);
+			$this->players[$event->getPlayer()->getName()] = RPGPlayer::getFromSaveData($event->getPlayer(),$data);
 		}else{
 			$this->players[$event->getPlayer()->getName()] = new RPGPlayer($event->getPlayer());
 		}
@@ -130,6 +157,26 @@ class ToAruPG extends PluginBase implements Listener{
 		if($this->isValidPlayer($event->getPlayer())){
 			file_put_contents($this->getDataFolder().$event->getPlayer()->getName().".player", json_encode($this->players[$event->getPlayer()->getName()]->getSaveData()));
 			unset($this->players[$event->getPlayer()->getName()]);
+		}
+	}
+
+	public function onEntityDamage(EntityDamageEvent $event){
+		$player = $event->getEntity();
+
+		if(!($player instanceof Player)) return;
+		if(!$this->isValidPlayer($player)) return;
+
+		$formerHealth = $this->players[$player->getName()]->health;
+		$this->players[$player->getName()]->health -= $event->getFinalDamage();
+
+		if($this->players[$player->getName()]->health >= 20){
+			$event->setDamage(0);
+		}elseif($formerHealth > 20){
+			$event->setDamage($event->getFinalDamage() - ($formerHealth - 20));
+		}
+
+		if(($player->getHealth() - $event->getFinalDamage()) <= 0){
+			$this->players[$player->getName()]->health = $this->players[$player->getName()]->getStatus()->getMaxHp();
 		}
 	}
 
@@ -172,10 +219,17 @@ class ToAruPG extends PluginBase implements Listener{
 
 	public function heal(){
 		foreach($this->players as $playerName => $rpgPlayer){
-			$hp = $rpgPlayer->getPlayer()->getHealth() + ($rpgPlayer->getFinalValue(Status::MAX_HP) / 10);
+			$hp = $rpgPlayer->health + ($rpgPlayer->getFinalValue(Status::MAX_HP) / 10);
 			$mp = $rpgPlayer->mana + ($rpgPlayer->getFinalValue(Status::MAX_MP) / 10);
 			$rpgPlayer->mana = ($mp > $rpgPlayer->getFinalValue(Status::MAX_MP)) ? $rpgPlayer->getFinalValue(Status::MAX_MP) : $mp;
-			$rpgPlayer->getPlayer()->setHealth(($hp > $rpgPlayer->getFinalValue(Status::MAX_HP)) ? $rpgPlayer->getFinalValue(Status::MAX_HP) : $hp);
+			$rpgPlayer->health = ($hp > $rpgPlayer->getFinalValue(Status::MAX_HP)) ? $rpgPlayer->getFinalValue(Status::MAX_HP) : $hp;
+			if($rpgPlayer->getPlayer()->getHealth() < 20){
+				if($rpgPlayer->health >= 20){
+					$rpgPlayer->getPlayer()->setHealth(20);
+				}else{
+					$rpgPlayer->getPlayer()->setHealth($rpgPlayer->health);
+				}
+			}
 		}
 	}
 
@@ -183,7 +237,7 @@ class ToAruPG extends PluginBase implements Listener{
 		foreach($this->players as $name => $rpg){
 			$rpg->getPlayer()->sendTip(
 				TextFormat::RED.
-				$this->drawProgress($rpg->getPlayer()->getHealth(), $rpg->getFinalValue(Status::MAX_HP), 30, self::getTranslation("HP"), TextFormat::RED, TextFormat::WHITE)."\n".
+				$this->drawProgress($rpg->health, $rpg->getFinalValue(Status::MAX_HP), 30, self::getTranslation("HP"), TextFormat::RED, TextFormat::WHITE)."\n".
 				TextFormat::BLUE.
 				$this->drawProgress($rpg->mana, $rpg->getFinalValue(Status::MAX_MP), 30, self::getTranslation("MP"), TextFormat::BLUE, TextFormat::WHITE)
 			);
@@ -199,7 +253,7 @@ class ToAruPG extends PluginBase implements Listener{
 			$text .= ":";
 		}
 
-		$text .= " ".$current."/".$max;
+		$text .= $color." ".$current."/".$max;
 		return $text;
 	}
 

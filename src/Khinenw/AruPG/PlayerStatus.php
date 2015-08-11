@@ -37,10 +37,10 @@ class PlayerStatus extends Status{
 		$this->xp = $xp;
 	}
 
-	public function setMaxHp($maxHp){
+	/*public function setMaxHp($maxHp){
 		parent::setMaxHp($maxHp);
 		$this->getOwner()->getPlayer()->setMaxHealth($this->getOwner()->getFinalValue(self::MAX_HP));
-	}
+	}*/
 
 	public function getOwner(){
 		return $this->owner;

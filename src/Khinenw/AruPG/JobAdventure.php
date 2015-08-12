@@ -4,7 +4,7 @@ namespace Khinenw\AruPG;
 
 class JobAdventure implements Job{
 	public static function getName(){
-		return "Adventurer";
+		return "ADVENTURER";
 	}
 
 	public static function getId(){

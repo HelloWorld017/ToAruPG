@@ -34,6 +34,6 @@ class SkillManager{
 	 * @return Skill|null If the skill is registered, it returns the skill. Otherwise, it returns null
 	 */
 	public static function getSkill($skillId){
-		return isset(self::$skills[$skillId]) ? self::$skills[$skillId] : null;
+		return isset(self::$skills[$skillId]) ? (clone self::$skills[$skillId]) : null;
 	}
 }

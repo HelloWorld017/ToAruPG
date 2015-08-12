@@ -94,5 +94,5 @@ interface Skill{
 	 * @method string getSkillDescription() Returns description of the skill
 	 * @return string Returns description of the skill.
 	 */
-	public static function getSkillDescription();
+	public function getSkillDescription();
 }

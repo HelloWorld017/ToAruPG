@@ -16,10 +16,22 @@ permissions:
 
       toarupg.isp:
         description: "The permission for investing SP."
-        default: op
+        default: true
 
       toarupg.iap:
         description: "The permission for investing AP."
+        default: true
+
+      toarupg.ability:
+        description: "The permission for reading current ability."
+        default: true
+
+      toarupg.save:
+        description: "The permission for saving command sender's data."
+        default: true
+
+      toarupg.saveall:
+        description: "The permission for saving all of user datas."
         default: op
 
 commands:
@@ -38,3 +50,17 @@ commands:
     usage: "/iap [status]"
     permission: toarupg.iap
 
+  ability:
+    description: "Gets current status."
+    usage: "/ability"
+    permission: toarupg.ability
+
+  save:
+    description: "Saves user data."
+    usage: "/save"
+    permission: toarupg.save
+
+  saveall:
+    description: "Saves all of user datas"
+    usage: "/saveall"
+    permission: toarupg.saveall

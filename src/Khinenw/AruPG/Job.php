@@ -17,8 +17,8 @@ interface Job{
 	public static function getId();
 
 	/**
-	 * @method Skill[] getSkills() Skill list which can be get
-	 * @return Skill[] Skill list which can be get
+	 * @method int[] getSkills() Skill id list which can be get
+	 * @return int[] Skill id list which can be get
 	 */
 	public static function getSkills();
 }

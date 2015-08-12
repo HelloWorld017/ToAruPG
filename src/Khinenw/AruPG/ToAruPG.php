@@ -29,6 +29,7 @@
 namespace Khinenw\AruPG;
 
 use Khinenw\AruPG\event\status\StatusInvestEvent;
+use Khinenw\AruPG\task\AutoSaveTask;
 use Khinenw\AruPG\task\HealTask;
 use Khinenw\AruPG\task\UITask;
 use pocketmine\command\Command;
@@ -41,6 +42,8 @@ use pocketmine\event\player\PlayerInteractEvent;
 use pocketmine\event\player\PlayerItemHeldEvent;
 use pocketmine\event\player\PlayerJoinEvent;
 use pocketmine\event\player\PlayerQuitEvent;
+use pocketmine\event\player\PlayerRespawnEvent;
+use pocketmine\item\Item;
 use pocketmine\Player;
 use pocketmine\plugin\PluginBase;
 use pocketmine\utils\Config;
@@ -50,6 +53,8 @@ class ToAruPG extends PluginBase implements Listener{
 	private static $instance = null;
 
 	private static $translation = [];
+
+	private $respawnAdd = [];
 
 	/**
 	 * @var $players RPGPlayer[]
@@ -66,12 +71,24 @@ class ToAruPG extends PluginBase implements Listener{
 	public function onEnable(){
 		@mkdir($this->getDataFolder());
 		self::$instance = $this;
-		self::$translation = (new Config($this->getDataFolder()."translation.yml", Config::YAML))->getAll();
+		self::$translation = (new Config($this->getDataFolder()."translation.yml", Config::YAML, yaml_parse(stream_get_contents($this->getResource("translation.yml")))))->getAll();
 		$this->players = [];
 		JobManager::registerJob(new JobAdventure());
 		$this->getServer()->getScheduler()->scheduleRepeatingTask(new HealTask($this), 1200);
 		$this->getServer()->getScheduler()->scheduleRepeatingTask(new UITask($this), 15);
 		$this->getServer()->getPluginManager()->registerEvents($this, $this);
+
+		if(!is_file($this->getDataFolder()."autosave.dat")){
+			file_put_contents($this->getDataFolder()."autosave.dat", 10);
+		}
+
+		$autoSaveTerm = file_get_contents($this->getDataFolder()."autosave.dat");
+
+		if($autoSaveTerm < 0){
+			$this->getLogger()->alert(TextFormat::YELLOW."Auto save turned-off!");
+		}else{
+			$this->getServer()->getScheduler()->scheduleRepeatingTask(new AutoSaveTask($this), $autoSaveTerm * 60 * 20);
+		}
 	}
 
 	public function onDisable(){
@@ -81,10 +98,17 @@ class ToAruPG extends PluginBase implements Listener{
 	}
 
 	public function onCommand(CommandSender $sender, Command $command, $label, array $args){
+
+		if($command->getName() === "saveall"){
+			$this->saveAll();
+			return true;
+		}
+
 		if(!$sender instanceof Player){
 			$sender->sendMessage(TextFormat::RED.$this->getTranslation("MUST_INGAME"));
 			return true;
 		}
+
 		switch($command->getName()){
 			case "skill":
 				if(!$this->isValidPlayer($sender)){
@@ -101,7 +125,7 @@ class ToAruPG extends PluginBase implements Listener{
 				 * @var $skill Skill
 				 */
 
-				$sender->sendMessage(TextFormat::GREEN."==========".self::getTranslation($skill->getName())."Lv.".$skill->getLevel()." ==========\n".$skill->getSkillDescription());
+				$sender->sendMessage(TextFormat::GREEN."==========".self::getTranslation($skill->getName()).self::getTranslation("LV").".".$skill->getLevel()." ==========\n".$skill->getSkillDescription());
 				break;
 
 			case "isp":
@@ -129,7 +153,11 @@ class ToAruPG extends PluginBase implements Listener{
 					$skill->investSP(1);
 					$sender->sendMessage(TextFormat::AQUA.self::getTranslation("INVESTED_SP"));
 					$this->getServer()->getPluginManager()->callEvent(new StatusInvestEvent($this, $this->players[$sender->getName()], StatusInvestEvent::SKILL, $skill->getId()));
+					$this->players[$sender->getName()]->getStatus()->sp--;
+				}else{
+					$sender->sendMessage(TextFormat::RED.self::getTranslation("CANNOT_INVEST_SP"));
 				}
+
 				break;
 
 			case "iap":
@@ -171,9 +199,47 @@ class ToAruPG extends PluginBase implements Listener{
 
 				$sender->sendMessage(TextFormat::AQUA.self::getTranslation("INVESTED_AP"));
 				break;
-		}
 
+			case "ability":
+				if(!$this->isValidPlayer($sender)){
+					$sender->sendMessage(TextFormat::RED.self::getTranslation("NOT_VALID_PLAYER"));
+					return true;
+				}
+
+				$text = TextFormat::GREEN."==========".self::getTranslation("STATUS")."==========";
+
+				$status = $this->players[$sender->getName()]->getStatus()->getSaveData();
+				foreach($status as $transkey => $stat){
+					$status[$transkey] = self::getTranslation(strtoupper($transkey))." : ".$stat;
+				}
+
+				foreach($this->players[$sender->getName()]->getArmorStatus() as $transkey => $stat){
+					if($stat != 0) $status[$transkey] .= " + ".$stat;
+				}
+
+				foreach($status as $stat){
+					$text .= "\n".$stat;
+				}
+
+				$sender->sendMessage($text);
+				break;
+
+			case "save":
+				if(!$this->isValidPlayer($sender)){
+					$sender->sendMessage(TextFormat::RED.self::getTranslation("NOT_VALID_PLAYER"));
+					return true;
+				}
+
+				file_put_contents($this->getDataFolder().$sender->getName().".player", json_encode($this->players[$sender->getName()]->getSaveData()));
+				break;
+		}
 		return true;
+	}
+
+	public function saveAll(){
+		foreach($this->players as $rpg){
+			file_put_contents($this->getDataFolder().$rpg->getPlayer()->getName().".player", json_encode($rpg->getSaveData()));
+		}
 	}
 
 	public function onPlayerJoin(PlayerJoinEvent $event){
@@ -186,6 +252,8 @@ class ToAruPG extends PluginBase implements Listener{
 		}else{
 			$this->players[$event->getPlayer()->getName()] = new RPGPlayer($event->getPlayer());
 		}
+
+		$event->getPlayer()->setDisplayName(self::getTranslation("LV").".".$this->players[$event->getPlayer()->getName()]->getStatus()->level." ".$event->getPlayer()->getDisplayName());
 	}
 
 	public function onPlayerQuit(PlayerQuitEvent $event){
@@ -206,6 +274,10 @@ class ToAruPG extends PluginBase implements Listener{
 
 		if($this->players[$player->getName()]->health >= 20){
 			$event->setDamage(0);
+			$event->setDamage(0, EntityDamageEvent::MODIFIER_STRENGTH);
+			$event->setDamage(0, EntityDamageEvent::MODIFIER_WEAKNESS);
+			$event->setDamage(0, EntityDamageEvent::MODIFIER_ARMOR);
+			$event->setDamage(0, EntityDamageEvent::MODIFIER_RESISTANCE);
 		}elseif($formerHealth > 20){
 			$event->setDamage($event->getFinalDamage() - ($formerHealth - 20));
 		}
@@ -220,13 +292,29 @@ class ToAruPG extends PluginBase implements Listener{
 		$rpgPlayer->mana = $rpgPlayer->getFinalValue(Status::MAX_MP);
 
 		$drops = [];
+		$this->respawnAdd[$event->getEntity()->getName()] = [];
 		foreach($event->getDrops() as $item){
 			if($rpgPlayer->getSkillByItem($item) === null){
 				$drops[] = $item;
+			}else{
+				$this->respawnAdd[$event->getEntity()->getName()][] = $item;
 			}
 		}
 
 		$event->setDrops($drops);
+	}
+
+	public function onPlayerRespawn(PlayerRespawnEvent $event){
+		if(!isset($this->respawnAdd[$event->getPlayer()->getName()])) return;
+
+		/**
+		 * @var $item Item
+		 */
+		foreach($this->respawnAdd[$event->getPlayer()->getName()] as $item){
+			if(!$event->getPlayer()->getInventory()->contains($item)){
+				$event->getPlayer()->getInventory()->addItem($item);
+			}
+		}
 	}
 
 	public function onPlayerItemDrop(PlayerDropItemEvent $event){
@@ -251,7 +339,7 @@ class ToAruPG extends PluginBase implements Listener{
 						$player->mana -= $skill->getRequiredMana();
 					}
 				}else{
-					$player->getPlayer()->sendMessage(TextFormat::RED."NO_MANA");
+					$player->getPlayer()->sendMessage(TextFormat::RED.self::getTranslation("NO_MANA"));
 				}
 			}
 		}
@@ -265,7 +353,7 @@ class ToAruPG extends PluginBase implements Listener{
 			 * @var $skill Skill
 			 */
 			if($skill !== null){
-				$event->getPlayer()->sendPopup(self::getTranslation($skill->getName()));
+				$event->getPlayer()->sendPopup(self::getTranslation("LV").". ".$skill->getLevel().self::getTranslation($skill->getName()));
 			}
 		}
 	}
@@ -288,12 +376,20 @@ class ToAruPG extends PluginBase implements Listener{
 
 	public function showUi(){
 		foreach($this->players as $name => $rpg){
-			$rpg->getPlayer()->sendTip(
+			$text = self::getTranslation("LV").".".$rpg->getStatus()->level." ".self::getTranslation($rpg->getCurrentJob()->getName())."\n".
 				TextFormat::RED.
-				$this->drawProgress($rpg->health, $rpg->getFinalValue(Status::MAX_HP), 30, self::getTranslation("HP"), TextFormat::RED, TextFormat::WHITE)."\n".
+				$this->drawProgress($rpg->health, $rpg->getFinalValue(Status::MAX_HP), 30, self::getTranslation("HP"), TextFormat::RED, TextFormat::GRAY)."\n".
 				TextFormat::BLUE.
-				$this->drawProgress($rpg->mana, $rpg->getFinalValue(Status::MAX_MP), 30, self::getTranslation("MP"), TextFormat::BLUE, TextFormat::WHITE)
-			);
+				$this->drawProgress($rpg->mana, $rpg->getFinalValue(Status::MAX_MP), 30, self::getTranslation("MP"), TextFormat::BLUE, TextFormat::GRAY);
+
+			if($rpg->getStatus()->ap > 0){
+				$text .= "\n".TextFormat::YELLOW.self::getTranslation("AP")." : ".$rpg->getStatus()->ap;
+			}
+
+			if($rpg->getStatus()->sp > 0){
+				$text .= "\n".TextFormat::YELLOW.self::getTranslation("SP")." : ".$rpg->getStatus()->sp;
+			}
+			$rpg->getPlayer()->sendTip($text);
 		}
 	}
 
@@ -321,19 +417,36 @@ class ToAruPG extends PluginBase implements Listener{
 		$translation = self::$translation[$key];
 
 		foreach($args as $argKey => $argValue){
-			$translation = str_replace($argKey, $argValue, $translation);
+			$translation = str_replace("%s".($argKey + 1), $argValue, $translation);
 		}
 
 		return $translation;
 	}
 
 	public function getRPGPlayerByName($player){
-		return ($this->isValidPlayer($player)) ? $this->players[$player] : null;
+		if($player instanceof Player){
+			return ($this->isValidPlayer($player)) ? $this->players[$player->getName()] : null;
+		}
+		return ($this->isValidPlayer($this->getServer()->getPlayerExact($player))) ? $this->players[$player] : null;
 	}
 
-	public static function addTranslation($key, $value){
+	public static function addTranslation($key, $value, $save = true){
 		if(isset(self::$translation[$key])) return;
 		self::$translation[$key] = $value;
+
+		if($save){
+			$translate = (new Config(self::getInstance()->getDataFolder()."translation.yml", Config::YAML));
+			$translate->setAll(self::$translation);
+			$translate->save();
+		}
+	}
+
+	public static function addAllTranslation($resource){
+		$translations = yaml_parse(stream_get_contents($resource));
+
+		foreach($translations as $name => $data){
+			self::addTranslation($name, $data, false);
+		}
 
 		$translate = (new Config(self::getInstance()->getDataFolder()."translation.yml", Config::YAML));
 		$translate->setAll(self::$translation);

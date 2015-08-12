@@ -71,6 +71,13 @@ class RPGPlayer{
 		return array_key_exists($item->getId().";".$item->getDamage(), $this->skills);
 	}
 
+	public function getSkillById($skillId){
+		$skill = SkillManager::getSkill($skillId);
+		if($skill === null) return false;
+		$item = $skill->getItem();
+		return array_key_exists($item->getId().";".$item->getDamage(), $this->skills) ? $this->skills[$item->getId().";".$item->getDamage()] : null;
+	}
+
 	public function acquireSkill(Skill $skill){
 		$skillAcquireEvent = new SkillAcquireEvent(ToAruPG::getInstance(), $skill);
 		Server::getInstance()->getPluginManager()->callEvent($skillAcquireEvent);

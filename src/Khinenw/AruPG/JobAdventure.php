@@ -15,4 +15,12 @@ class JobAdventure implements Job{
 		return [];
 	}
 
+	public static function getBaseDamage(RPGPlayer $player){
+		return $player->getStatus()->str;
+	}
+
+	public static function getArmorBaseDamage(RPGPlayer $player){
+		return $player->getArmorStatus()->str;
+	}
+
 }

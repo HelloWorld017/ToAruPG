@@ -23,6 +23,11 @@ interface Skill{
 	public function setPlayer(RPGPlayer $player);
 
 	/**
+	 * @return RPGPlayer
+	 */
+	public function getPlayer();
+
+	/**
 	 * @method void onPassiveInit() Called when passive skill init (Player Joined, Player Acquires Skill, etc...)
 	 */
 	public function onPassiveInit();

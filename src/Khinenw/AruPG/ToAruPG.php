@@ -221,6 +221,11 @@ class ToAruPG extends PluginBase implements Listener{
 					$text .= "\n".$stat;
 				}
 
+				$baseDamage = $this->players[$sender->getName()]->getCurrentJob()->getBaseDamage($this->players[$sender->getName()]);
+				$armorDamage = $this->players[$sender->getName()]->getCurrentJob()->getArmorBaseDamage($this->players[$sender->getName()]);
+
+				$text .= "\n". $baseDamage . (($armorDamage === 0 ) ? "" : " + " . $armorDamage);
+
 				$sender->sendMessage($text);
 				break;
 

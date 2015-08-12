@@ -168,7 +168,7 @@ class ToAruPG extends PluginBase implements Listener{
 					return true;
 				}
 
-				if($this->players[$sender->getName()]->getStatus()->sp < 1){
+				if($this->players[$sender->getName()]->getStatus()->ap < 1){
 					$sender->sendMessage(TextFormat::RED.self::getTranslation("INSUFFICIENT_AP"));
 					return true;
 				}
@@ -236,6 +236,7 @@ class ToAruPG extends PluginBase implements Listener{
 				}
 
 				file_put_contents($this->getDataFolder().$sender->getName().".player", json_encode($this->players[$sender->getName()]->getSaveData()));
+				$sender->sendMessage(TextFormat::AQUA.self::getTranslation("SAVED"));
 				break;
 		}
 		return true;

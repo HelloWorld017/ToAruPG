@@ -34,6 +34,7 @@ use Khinenw\AruPG\task\HealTask;
 use Khinenw\AruPG\task\UITask;
 use pocketmine\command\Command;
 use pocketmine\command\CommandSender;
+use pocketmine\event\block\BlockPlaceEvent;
 use pocketmine\event\entity\EntityDamageEvent;
 use pocketmine\event\Listener;
 use pocketmine\event\player\PlayerDeathEvent;
@@ -101,6 +102,27 @@ class ToAruPG extends PluginBase implements Listener{
 
 		if($command->getName() === "saveall"){
 			$this->saveAll();
+			return true;
+		}
+
+		if($command->getName() === "addtrans"){
+			if(count($args) < 1) return false;
+
+			$fileName = "translation_".$args[0].".yml";
+
+			if(($res = $this->getResource($fileName)) !== null){
+				$trans =  $res;
+			}else{
+				if(!is_file($fileName)){
+					$sender->sendMessage(TextFormat::RED.self::getTranslation("TRANSLATION_FILE_DOESNT_EXIST"));
+
+					return true;
+				}
+
+				$trans = fopen($this->getDataFolder().$fileName, "rb");
+			}
+
+			$this->forceAddAllTranslation($trans);
 			return true;
 		}
 
@@ -224,7 +246,7 @@ class ToAruPG extends PluginBase implements Listener{
 				$baseDamage = $this->players[$sender->getName()]->getCurrentJob()->getBaseDamage($this->players[$sender->getName()]);
 				$armorDamage = $this->players[$sender->getName()]->getCurrentJob()->getArmorBaseDamage($this->players[$sender->getName()]);
 
-				$text .= "\n". $baseDamage . (($armorDamage === 0 ) ? "" : " + " . $armorDamage);
+				$text .= "\n" . self::getTranslation("ATTACK_DAMAGE") . " : " . $baseDamage . (($armorDamage === 0 ) ? "" : " + " . $armorDamage);
 
 				$sender->sendMessage($text);
 				break;
@@ -238,6 +260,7 @@ class ToAruPG extends PluginBase implements Listener{
 				file_put_contents($this->getDataFolder().$sender->getName().".player", json_encode($this->players[$sender->getName()]->getSaveData()));
 				$sender->sendMessage(TextFormat::AQUA.self::getTranslation("SAVED"));
 				break;
+
 		}
 		return true;
 	}
@@ -332,10 +355,11 @@ class ToAruPG extends PluginBase implements Listener{
 	}
 
 	public function onPlayerInteract(PlayerInteractEvent $event){
-		if($event->getAction() === PlayerInteractEvent::RIGHT_CLICK_BLOCK) return;
 		if($this->isValidPlayer($event->getPlayer())){
 			$player = $this->players[$event->getPlayer()->getName()];
 			$skill = $player->getSkillByItem($event->getItem());
+			if($skill !== null) $event->setCancelled();
+			if($event->getAction() === PlayerInteractEvent::RIGHT_CLICK_BLOCK) return;
 			/**
 			 * @var $skill Skill
 			 */
@@ -348,6 +372,14 @@ class ToAruPG extends PluginBase implements Listener{
 					$player->getPlayer()->sendMessage(TextFormat::RED.self::getTranslation("NO_MANA"));
 				}
 			}
+		}
+	}
+
+	public function onBlockPlace(BlockPlaceEvent $event){
+		if(!$this->isValidPlayer($event->getPlayer())) return;
+		$rpg = $this->players[$event->getPlayer()->getName()];
+		if($rpg->getSkillByItem($event->getItem()) !== null){
+			$event->setCancelled();
 		}
 	}
 
@@ -436,8 +468,10 @@ class ToAruPG extends PluginBase implements Listener{
 		return ($this->isValidPlayer($this->getServer()->getPlayerExact($player))) ? $this->players[$player] : null;
 	}
 
-	public static function addTranslation($key, $value, $save = true){
-		if(isset(self::$translation[$key])) return;
+	public static function addTranslation($key, $value, $save = true, $force = false){
+		if(!$force){
+			if(isset(self::$translation[$key])) return;
+		}
 		self::$translation[$key] = $value;
 
 		if($save){
@@ -457,5 +491,21 @@ class ToAruPG extends PluginBase implements Listener{
 		$translate = (new Config(self::getInstance()->getDataFolder()."translation.yml", Config::YAML));
 		$translate->setAll(self::$translation);
 		$translate->save();
+
+		fclose($resource);
+	}
+
+	public static function forceAddAllTranslation($resource){
+		$translations = yaml_parse(stream_get_contents($resource));
+
+		foreach($translations as $name => $data){
+			self::addTranslation($name, $data, false, true);
+		}
+
+		$translate = (new Config(self::getInstance()->getDataFolder()."translation.yml", Config::YAML));
+		$translate->setAll(self::$translation);
+		$translate->save();
+
+		fclose($resource);
 	}
 }

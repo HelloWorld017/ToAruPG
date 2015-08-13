@@ -34,6 +34,10 @@ permissions:
         description: "The permission for saving all of user datas."
         default: op
 
+      toarupg.addtrans:
+        description: "The permission for adding translation."
+        default: op
+
 commands:
   skill:
     description: "Gets description of current holding skill."
@@ -64,3 +68,8 @@ commands:
     description: "Saves all of user datas"
     usage: "/saveall"
     permission: toarupg.saveall
+
+  addtrans:
+    description: "Adds a translation"
+    usage: "/addtrans"
+    permission: toarupg.addtrans

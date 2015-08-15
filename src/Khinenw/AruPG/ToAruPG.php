@@ -40,6 +40,7 @@ use pocketmine\event\Listener;
 use pocketmine\event\player\PlayerDeathEvent;
 use pocketmine\event\player\PlayerDropItemEvent;
 use pocketmine\event\player\PlayerInteractEvent;
+use pocketmine\event\player\PlayerItemConsumeEvent;
 use pocketmine\event\player\PlayerItemHeldEvent;
 use pocketmine\event\player\PlayerJoinEvent;
 use pocketmine\event\player\PlayerQuitEvent;
@@ -231,11 +232,18 @@ class ToAruPG extends PluginBase implements Listener{
 				$text = TextFormat::GREEN."==========".self::getTranslation("STATUS")."==========";
 
 				$status = $this->players[$sender->getName()]->getStatus()->getSaveData();
+				$text = [];
 				foreach($status as $transkey => $stat){
-					$status[$transkey] = self::getTranslation(strtoupper($transkey))." : ".$stat;
+					$text[$transkey] = self::getTranslation(strtoupper($transkey)) . " : " . $stat;
 				}
 
-				foreach($this->players[$sender->getName()]->getArmorStatus() as $transkey => $stat){
+				$armorStatus = $this->players[$sender->getName()]->getArmorStatus()->getSaveData();
+				$skillStatus = $status = $this->players[$sender->getName()]->getSkillStatus()->getSaveData();
+				foreach($armorStatus as $transkey => $stat){
+					if(isset($skillStatus[$transkey])){
+						$stat += $skillStatus[$transkey];
+					}
+
 					if($stat != 0) $status[$transkey] .= " + ".$stat;
 				}
 
@@ -244,7 +252,7 @@ class ToAruPG extends PluginBase implements Listener{
 				}
 
 				$baseDamage = $this->players[$sender->getName()]->getCurrentJob()->getBaseDamage($this->players[$sender->getName()]);
-				$armorDamage = $this->players[$sender->getName()]->getCurrentJob()->getArmorBaseDamage($this->players[$sender->getName()]);
+				$armorDamage = $this->players[$sender->getName()]->getCurrentJob()->getAdditionalBaseDamage($this->players[$sender->getName()]);
 
 				$text .= "\n" . self::getTranslation("ATTACK_DAMAGE") . " : " . $baseDamage . (($armorDamage === 0 ) ? "" : " + " . $armorDamage);
 
@@ -354,6 +362,14 @@ class ToAruPG extends PluginBase implements Listener{
 		}
 	}
 
+	public function onPlayerItemConsume(PlayerItemConsumeEvent $event){
+		if(!$this->isValidPlayer($event->getPlayer())) return;
+
+		if($this->players[$event->getPlayer()->getName()]->getSkillByItem($event->getItem()) !== null){
+			$event->setCancelled();
+		}
+	}
+
 	public function onPlayerInteract(PlayerInteractEvent $event){
 		if($this->isValidPlayer($event->getPlayer())){
 			$player = $this->players[$event->getPlayer()->getName()];
@@ -391,7 +407,7 @@ class ToAruPG extends PluginBase implements Listener{
 			 * @var $skill Skill
 			 */
 			if($skill !== null){
-				$event->getPlayer()->sendPopup(self::getTranslation("LV").". ".$skill->getLevel().self::getTranslation($skill->getName()));
+				$event->getPlayer()->sendPopup(self::getTranslation("LV").".".$skill->getLevel()." ".self::getTranslation($skill->getName()));
 			}
 		}
 	}

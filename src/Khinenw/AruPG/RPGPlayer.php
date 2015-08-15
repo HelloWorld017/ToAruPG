@@ -5,6 +5,7 @@ namespace Khinenw\AruPG;
 use Khinenw\AruPG\event\job\JobChangeEvent;
 use Khinenw\AruPG\event\skill\SkillAcquireEvent;
 use Khinenw\AruPG\event\skill\SkillDiscardEvent;
+use Khinenw\AruPG\event\skill\SkillStatusResetEvent;
 use Khinenw\AruPG\event\status\ArmorChangeEvent;
 use Khinenw\AruPG\event\status\PlayerLevelupEvent;
 use pocketmine\item\Item;
@@ -18,11 +19,39 @@ class RPGPlayer{
 	private $player;
 	private $status;
 	private $armorStatus;
+	private $skillStatus;
 	public $mana;
 	public $health;
 
+	const MAX_LEVEL = 100;
+
 	public function __construct(Player $player, array $skills = [], $job = 0, array $status = [], $mana = -1, $health = -1){
 		$this->player = $player;
+
+		$this->job = JobManager::getJob($job);
+
+		$this->status = new PlayerStatus($status, $this);
+		$this->armorStatus = new Status([
+			Status::MAX_HP => 0,
+			Status::MAX_MP => 0,
+			Status::STR => 0,
+			Status::INT => 0,
+			Status::DEX => 0,
+			Status::LUK => 0
+		]);
+
+		$this->skillStatus = new Status([
+			Status::MAX_HP => 0,
+			Status::MAX_MP => 0,
+			Status::STR => 0,
+			Status::INT => 0,
+			Status::DEX => 0,
+			Status::LUK => 0
+		]);
+
+		$this->mana = ($mana === -1) ? $this->getFinalValue(Status::MAX_MP) : $mana;
+		$this->health = ($health === -1) ? $health : $this->getFinalValue(Status::MAX_HP);
+
 		$this->skills = [];
 		foreach($skills as $skillTag){
 			$skillData = explode(";", $skillTag);
@@ -36,27 +65,6 @@ class RPGPlayer{
 			$skill->onPassiveInit();
 		}
 
-		$this->job = JobManager::getJob($job);
-		$this->mana = $mana;
-		$this->health = -1;
-
-		$this->status = new PlayerStatus($status, $this);
-		$this->armorStatus = new Status([
-			Status::MAX_HP => 0,
-			Status::MAX_MP => 0,
-			Status::STR => 0,
-			Status::INT => 0,
-			Status::DEX => 0,
-			Status::LUK => 0
-		]);
-
-		if($this->mana === -1){
-			$this->mana = $this->getFinalValue(Status::MAX_MP);
-		}
-
-		if($this->health === -1){
-			$this->health = $this->getFinalValue(Status::MAX_HP);
-		}
 	}
 
 	public function getSkillByItem(Item $item){
@@ -105,6 +113,24 @@ class RPGPlayer{
 			Server::getInstance()->getPluginManager()->callEvent(new SkillDiscardEvent(ToAruPG::getInstance(), $skill));
 			unset($this->skills[$item]);
 		}
+
+		$level = $this->getStatus()->level;
+		$this->status = new PlayerStatus([], $this);
+
+		$this->status->level = $level;
+		$this->getStatus()->sp = $this->getStatus()->level * 3;
+		$this->getStatus()->ap = $this->getStatus()->level * 5;
+		$this->resetSkillStatus();
+	}
+
+	public function resetSkillStatus(){
+		$this->skillStatus = new Status([]);
+		Server::getInstance()->getPluginManager()->callEvent(new SkillStatusResetEvent(ToAruPG::getInstance(), $this));
+		foreach($this->skills as $skill){
+			if($skill instanceof PassiveSkill){
+				$skill->onSkillStatusReset();
+			}
+		}
 	}
 
 	public function addXp($amount){
@@ -118,21 +144,30 @@ class RPGPlayer{
 	}
 
 	public function levelUp(){
+		if($this->getStatus()->level >= self::MAX_LEVEL) return;
 		Server::getInstance()->getPluginManager()->callEvent(new PlayerLevelupEvent(ToAruPG::getInstance(), $this));
 		$this->status->level++;
 		$this->status->sp += 3;
-		$this->status->ap += 3;
+		$this->status->ap += 5;
 		$this->status->setMaxHp($this->status->getMaxHp() + 20);
 		$this->status->maxMp += 100;
 	}
 
 	public function getFinalValue($statusKey){
-		return ($this->armorStatus->$statusKey + $this->status->$statusKey);
+		return ($this->armorStatus->$statusKey + $this->status->$statusKey + $this->skillStatus->$statusKey);
+	}
+
+	public function getAdditionalValue($statusKey){
+		return $this->armorStatus->$statusKey + $this->skillStatus->$statusKey;
 	}
 
 	public function setArmorStatus(Status $status){
 		Server::getInstance()->getPluginManager()->callEvent(new ArmorChangeEvent(ToAruPG::getInstance(), $this, $this->armorStatus, $status));
 		$this->armorStatus = $status;
+	}
+
+	public function getSkillStatus(){
+		return $this->skillStatus;
 	}
 
 	public function getPlayer(){

@@ -19,8 +19,8 @@ class JobAdventure implements Job{
 		return $player->getStatus()->str;
 	}
 
-	public static function getArmorBaseDamage(RPGPlayer $player){
-		return $player->getArmorStatus()->str;
+	public static function getAdditionalBaseDamage(RPGPlayer $player){
+		return $player->getAdditionalValue(Status::STR);
 	}
 
 }

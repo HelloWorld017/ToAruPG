@@ -8,7 +8,7 @@ api: 1.12.0
 permissions:
   toarupg.*:
     description: "The permission for using features."
-    default: true
+    default: op
     children:
       toarupg.skill:
         description: "The permission for getting description of skill."

@@ -252,14 +252,14 @@ class ToAruPG extends UpdatePlugin implements Listener{
 					if($stat != 0) $status[$transkey] .= " + ".$stat;
 				}
 
-				foreach($status as $stat){
-					$text .= "\n".$stat;
+				foreach($status as $transKey => $stat){
+					$text .= "\n".TextFormat::GOLD . self::getTranslation(strtoupper($transKey)) . TextFormat::GREEN . " : " .$stat;
 				}
 
 				$baseDamage = $this->players[$sender->getName()]->getCurrentJob()->getBaseDamage($this->players[$sender->getName()]);
 				$armorDamage = $this->players[$sender->getName()]->getCurrentJob()->getAdditionalBaseDamage($this->players[$sender->getName()]);
 
-				$text .= "\n" . self::getTranslation("ATTACK_DAMAGE") . " : " . $baseDamage . (($armorDamage === 0 ) ? "" : " + " . $armorDamage);
+				$text .= "\n" . TextFormat::GOLD . self::getTranslation("ATTACK_DAMAGE") . " : " . TextFormat::GREEN . $baseDamage . (($armorDamage === 0 ) ? "" : " + " . $armorDamage);
 
 				$sender->sendMessage($text);
 				break;
@@ -272,7 +272,6 @@ class ToAruPG extends UpdatePlugin implements Listener{
 				file_put_contents($this->getDataFolder().$sender->getName().".player", json_encode($this->players[$sender->getName()]->getSaveData()));
 				$sender->sendMessage(TextFormat::AQUA.self::getTranslation("SAVED"));
 				break;
-
 		}
 		return true;
 	}

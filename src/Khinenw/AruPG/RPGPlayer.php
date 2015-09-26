@@ -10,9 +10,11 @@ use Khinenw\AruPG\event\status\ArmorChangeEvent;
 use Khinenw\AruPG\event\status\PlayerLevelupEvent;
 use pocketmine\entity\Attribute;
 use pocketmine\item\Item;
+use pocketmine\level\sound\AnvilUseSound;
 use pocketmine\network\protocol\UpdateAttributesPacket;
 use pocketmine\Player;
 use pocketmine\Server;
+use pocketmine\utils\TextFormat;
 
 class RPGPlayer{
 
@@ -177,6 +179,18 @@ class RPGPlayer{
 		$this->status->ap += 5;
 		$this->status->setMaxHp($this->status->getMaxHp() + 20);
 		$this->status->maxMp += 100;
+		$this->status->setXp(0);
+
+		$this->getPlayer()->sendMessage(TextFormat::AQUA . ToAruPG::getTranslation("CELEBRATE_LEVEL_UP"));
+		$this->getPlayer()->sendMessage(
+			TextFormat::BLUE . ToAruPG::getTranslation(
+				"LEVEL_UP_TEXT",
+				ToAruPG::getTranslation("LV") . ". " . ($this->status->level - 1),
+				ToAruPG::getTranslation("LV") . ". " . $this->status->level
+			)
+		);
+
+		$this->getPlayer()->getLevel()->addSound(new AnvilUseSound($this->getPlayer()->getPosition()));
 	}
 
 	public function getFinalValue($statusKey){

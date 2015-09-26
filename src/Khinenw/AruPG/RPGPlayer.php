@@ -82,6 +82,10 @@ class RPGPlayer{
 		return array_key_exists($item->getId().";".$item->getDamage(), $this->skills);
 	}
 
+	/**
+	 * @param $skillId
+	 * @return Skill|null
+	 */
 	public function getSkillById($skillId){
 		$skill = SkillManager::getSkill($skillId);
 		if($skill === null) return false;
@@ -156,7 +160,7 @@ class RPGPlayer{
 		$expAttribute = Attribute::getAttribute(Attribute::EXPERIENCE)->setValue($this->getStatus()->getXp() / $needXp);
 
 		$pk = new UpdateAttributesPacket();
-		$pk->entityId = $this->getPlayer()->getId();
+		$pk->entityId = 0;
 		$pk->entries = [
 			$expAttribute,
 			$lvAttribute

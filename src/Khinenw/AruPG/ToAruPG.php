@@ -59,6 +59,8 @@ class ToAruPG extends UpdatePlugin implements Listener{
 
 	private $respawnAdd = [];
 
+	public static $pvpEnabled = false;
+
 	/**
 	 * @var $players RPGPlayer[]
 	 */
@@ -75,6 +77,7 @@ class ToAruPG extends UpdatePlugin implements Listener{
 		@mkdir($this->getDataFolder());
 		self::$instance = $this;
 		self::$translation = (new Config($this->getDataFolder()."translation.yml", Config::YAML, yaml_parse(stream_get_contents($this->getResource("translation.yml")))))->getAll();
+		self::$pvpEnabled = $this->getServer()->getConfigBoolean("pvp");
 		XcelUpdater::chkUpdate($this);
 		$this->players = [];
 		JobManager::registerJob(new JobAdventure());
@@ -266,8 +269,6 @@ class ToAruPG extends UpdatePlugin implements Listener{
 					$sender->sendMessage(TextFormat::RED.self::getTranslation("NOT_VALID_PLAYER"));
 					return true;
 				}
-				//To Test
-				//$this->players[$sender->getName()]->notifyXP();
 				file_put_contents($this->getDataFolder().$sender->getName().".player", json_encode($this->players[$sender->getName()]->getSaveData()));
 				$sender->sendMessage(TextFormat::AQUA.self::getTranslation("SAVED"));
 				break;
@@ -355,6 +356,10 @@ class ToAruPG extends UpdatePlugin implements Listener{
 				$event->getPlayer()->getInventory()->addItem($item);
 			}
 		}
+		$player = $this->getRPGPlayerByName($event->getPlayer()->getName());
+		if($player !== null){
+			$player->notifyXP();
+		}
 	}
 
 	public function onPlayerItemDrop(PlayerDropItemEvent $event){
@@ -410,7 +415,7 @@ class ToAruPG extends UpdatePlugin implements Listener{
 			 * @var $skill Skill
 			 */
 			if($skill !== null){
-				$event->getPlayer()->sendPopup(self::getTranslation("LV").".".$skill->getLevel()." ".self::getTranslation($skill->getName()));
+				$event->getPlayer()->sendPopup(TextFormat::AQUA . self::getTranslation("LV").".".$skill->getLevel()." ".self::getTranslation($skill->getName()));
 			}
 		}
 	}

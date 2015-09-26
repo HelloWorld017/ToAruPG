@@ -32,6 +32,8 @@ use Khinenw\AruPG\event\status\StatusInvestEvent;
 use Khinenw\AruPG\task\AutoSaveTask;
 use Khinenw\AruPG\task\HealTask;
 use Khinenw\AruPG\task\UITask;
+use Khinenw\XcelUpdater\UpdatePlugin;
+use Khinenw\XcelUpdater\XcelUpdater;
 use pocketmine\command\Command;
 use pocketmine\command\CommandSender;
 use pocketmine\event\block\BlockPlaceEvent;
@@ -47,11 +49,10 @@ use pocketmine\event\player\PlayerQuitEvent;
 use pocketmine\event\player\PlayerRespawnEvent;
 use pocketmine\item\Item;
 use pocketmine\Player;
-use pocketmine\plugin\PluginBase;
 use pocketmine\utils\Config;
 use pocketmine\utils\TextFormat;
 
-class ToAruPG extends PluginBase implements Listener{
+class ToAruPG extends UpdatePlugin implements Listener{
 	private static $instance = null;
 
 	private static $translation = [];
@@ -74,6 +75,7 @@ class ToAruPG extends PluginBase implements Listener{
 		@mkdir($this->getDataFolder());
 		self::$instance = $this;
 		self::$translation = (new Config($this->getDataFolder()."translation.yml", Config::YAML, yaml_parse(stream_get_contents($this->getResource("translation.yml")))))->getAll();
+		XcelUpdater::chkUpdate($this);
 		$this->players = [];
 		JobManager::registerJob(new JobAdventure());
 		$this->getServer()->getScheduler()->scheduleRepeatingTask(new HealTask($this), 1200);
@@ -148,7 +150,7 @@ class ToAruPG extends PluginBase implements Listener{
 				 * @var $skill Skill
 				 */
 
-				$sender->sendMessage(TextFormat::GREEN."==========".self::getTranslation($skill->getName()).self::getTranslation("LV").".".$skill->getLevel()." ==========\n".$skill->getSkillDescription());
+				$sender->sendMessage(TextFormat::GREEN."==========".self::getTranslation($skill->getName())." ".self::getTranslation("LV").".".$skill->getLevel()." ==========\n".$skill->getSkillDescription());
 				break;
 
 			case "isp":
@@ -231,10 +233,10 @@ class ToAruPG extends PluginBase implements Listener{
 
 				$text = TextFormat::GREEN."==========".self::getTranslation("STATUS")."==========";
 
-				$status = $this->players[$sender->getName()]->getStatus()->getSaveData();
-				$text = [];
-				foreach($status as $transkey => $stat){
-					$text[$transkey] = self::getTranslation(strtoupper($transkey)) . " : " . $stat;
+				$status = [];
+				$playerStatus = $this->players[$sender->getName()]->getStatus()->getSaveData();
+				foreach($playerStatus as $transkey => $stat){
+					$status[$transkey] = "\n" . self::getTranslation(strtoupper($transkey)) . " : " . $stat;
 				}
 
 				$armorStatus = $this->players[$sender->getName()]->getArmorStatus()->getSaveData();
@@ -264,7 +266,8 @@ class ToAruPG extends PluginBase implements Listener{
 					$sender->sendMessage(TextFormat::RED.self::getTranslation("NOT_VALID_PLAYER"));
 					return true;
 				}
-
+				//To Test
+				//$this->players[$sender->getName()]->notifyXP();
 				file_put_contents($this->getDataFolder().$sender->getName().".player", json_encode($this->players[$sender->getName()]->getSaveData()));
 				$sender->sendMessage(TextFormat::AQUA.self::getTranslation("SAVED"));
 				break;
@@ -523,5 +526,13 @@ class ToAruPG extends PluginBase implements Listener{
 		$translate->save();
 
 		fclose($resource);
+	}
+
+	public function compVersion($pluginVersion, $repoVersion){
+		return $pluginVersion !== $repoVersion;
+	}
+
+	public function getPluginYamlURL(){
+		return "https://raw.githubusercontent.com/HelloWorld017/ToAruPG/master/plugin.yml";
 	}
 }

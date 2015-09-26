@@ -8,7 +8,9 @@ use Khinenw\AruPG\event\skill\SkillDiscardEvent;
 use Khinenw\AruPG\event\skill\SkillStatusResetEvent;
 use Khinenw\AruPG\event\status\ArmorChangeEvent;
 use Khinenw\AruPG\event\status\PlayerLevelupEvent;
+use pocketmine\entity\Attribute;
 use pocketmine\item\Item;
+use pocketmine\network\protocol\UpdateAttributesPacket;
 use pocketmine\Player;
 use pocketmine\Server;
 
@@ -65,6 +67,7 @@ class RPGPlayer{
 			$skill->onPassiveInit();
 		}
 
+		$this->notifyXP();
 	}
 
 	public function getSkillByItem(Item $item){
@@ -141,6 +144,25 @@ class RPGPlayer{
 		if($this->status->getXp() > $needXp){
 			$this->levelUp();
 		}
+
+		$this->notifyXP();
+	}
+
+	public function notifyXP(){
+		$lvAttribute = Attribute::getAttribute(Attribute::EXPERIENCE_LEVEL)->setMaxValue(self::MAX_LEVEL)->setValue($this->getStatus()->level);
+
+		$needXp = $this->status->level * $this->status->level * 1000 + 1000;
+
+		$expAttribute = Attribute::getAttribute(Attribute::EXPERIENCE)->setValue($this->getStatus()->getXp() / $needXp);
+
+		$pk = new UpdateAttributesPacket();
+		$pk->entityId = $this->getPlayer()->getId();
+		$pk->entries = [
+			$expAttribute,
+			$lvAttribute
+		];
+
+		$this->getPlayer()->dataPacket($pk);
 	}
 
 	public function levelUp(){

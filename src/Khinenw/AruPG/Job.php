@@ -36,4 +36,18 @@ interface Job{
 	 * @return int Base damage of additional status (Mostly, it is gotten by (main ability / 2) + 3
 	 */
 	public static function getAdditionalBaseDamage(RPGPlayer $player);
+
+	/**
+	 * @method int getApproximation(RPGPlayer $player) Approximation of damage which will be shown in /abbility
+	 * @param RPGPlayer $player the player whose approximation damage will be returned
+	 * @return int Approximation Damage
+	 */
+	public static function getApproximation(RPGPlayer $player);
+
+	/**
+	 * @method int getFinalDamage(RPGPlayer $player) Final Damage. In most case, it is get by randomizeDamage(getBaseDamage + getAdditionalBaseDamage, getApproximation)
+	 * @param RPGPlayer $player the player whose final damage will be returned
+	 * @return int Final Damage
+	 */
+	public static function getFinalDamage(RPGPlayer $player);
 }

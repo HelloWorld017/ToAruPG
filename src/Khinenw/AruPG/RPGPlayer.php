@@ -25,7 +25,7 @@ class RPGPlayer{
 	private $armorStatus;
 	private $skillStatus;
 	public $mana;
-	public $health;
+	private $health;
 
 	const MAX_LEVEL = 100;
 
@@ -148,7 +148,9 @@ class RPGPlayer{
 		$needXp = $this->status->level * $this->status->level * 1000 + 1000;
 
 		if($this->status->getXp() > $needXp){
-			$this->levelUp();
+			if(!$this->levelUp()){
+				$this->status->setXp($needXp);
+			}
 		}
 
 		$this->notifyXP();
@@ -172,7 +174,7 @@ class RPGPlayer{
 	}
 
 	public function levelUp(){
-		if($this->getStatus()->level >= self::MAX_LEVEL) return;
+		if($this->getStatus()->level >= self::MAX_LEVEL) return false;
 		Server::getInstance()->getPluginManager()->callEvent(new PlayerLevelupEvent(ToAruPG::getInstance(), $this));
 		$this->status->level++;
 		$this->status->sp += 3;
@@ -191,6 +193,26 @@ class RPGPlayer{
 		);
 
 		$this->getPlayer()->getLevel()->addSound(new AnvilUseSound($this->getPlayer()->getPosition()));
+		return true;
+	}
+
+	public function getHealth(){
+		return $this->health;
+	}
+
+	public function setHealth($hp){
+		if($hp < 0) $hp = 0;
+		if($this->getFinalValue(Status::MAX_HP) < $hp) $hp = $this->getFinalValue(Status::MAX_HP);
+
+		if($this->health < 20){
+			$this->getPlayer()->setHealth(($hp > 20) ? 20 : $hp);
+		}
+
+		if($hp < 20){
+			$this->getPlayer()->setHealth($hp);
+		}
+
+		$this->health = $hp;
 	}
 
 	public function getFinalValue($statusKey){

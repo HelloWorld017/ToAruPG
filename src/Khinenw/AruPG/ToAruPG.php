@@ -1,9 +1,10 @@
 <?php
 
 /*
- * ////////////////API 95% Complete////////////////
- * TODO add EXP Packet Sending
- * TODO add Translation
+ * ////////////////API 99.99% Complete////////////////
+ * DONE add EXP Packet Sending
+ * DONE add Translation
+ * DONE add Death Penalty
  * DONE complete Event API
  * WONTFIX add str / 10 -> melee damage
  * DONE add AP, SP Stat
@@ -16,13 +17,13 @@
  * WONTFIX remove skill items when finish
  * DONE prevent skill items deleting
  * DONE mana reset when player death
- * POCKETMINEBUG set health won't send packet
+ * DONE add approximation
  *
  * ////////////////External Plugins////////////////
- * TODO add Dungeon
+ * WORKING add Dungeon
  * TODO add Potions
- * TODO add Jobs/Skills
- * TODO add Skill/Job shop
+ * WORKING add Jobs/Skills
+ * DONE add Skill/Job shop
  * TODO add Hestia Knife
  */
 
@@ -49,6 +50,7 @@ use pocketmine\event\player\PlayerQuitEvent;
 use pocketmine\event\player\PlayerRespawnEvent;
 use pocketmine\item\Item;
 use pocketmine\Player;
+use pocketmine\Server;
 use pocketmine\utils\Config;
 use pocketmine\utils\TextFormat;
 
@@ -258,8 +260,15 @@ class ToAruPG extends UpdatePlugin implements Listener{
 
 				$baseDamage = $this->players[$sender->getName()]->getCurrentJob()->getBaseDamage($this->players[$sender->getName()]);
 				$armorDamage = $this->players[$sender->getName()]->getCurrentJob()->getAdditionalBaseDamage($this->players[$sender->getName()]);
+				$approximation = $this->players[$sender->getName()]->getCurrentJob()->getApproximation($this->players[$sender->getName()]);
 
-				$text .= "\n" . TextFormat::GOLD . self::getTranslation("ATTACK_DAMAGE") . " : " . TextFormat::GREEN . $baseDamage . (($armorDamage === 0 ) ? "" : " + " . $armorDamage);
+				$text .=
+					"\n" .TextFormat::GOLD .
+					self::getTranslation("ATTACK_DAMAGE") . " : " .
+					TextFormat::GREEN . $baseDamage .
+					(($armorDamage === 0 ) ? "" : " + " . $armorDamage) .
+					(($approximation === 0) ? "" : "¡¾" . $approximation)
+				;
 
 				$sender->sendMessage($text);
 				break;
@@ -309,27 +318,25 @@ class ToAruPG extends UpdatePlugin implements Listener{
 		if(!($player instanceof Player)) return;
 		if(!$this->isValidPlayer($player)) return;
 
-		$formerHealth = $this->players[$player->getName()]->health;
-		$this->players[$player->getName()]->health -= $event->getFinalDamage();
+		$formerHealth = $this->players[$player->getName()]->getHealth();
+		$this->players[$player->getName()]->setHealth($formerHealth - $event->getFinalDamage());
 
-		if($this->players[$player->getName()]->health >= 20){
-			$event->setDamage(0);
-			$event->setDamage(0, EntityDamageEvent::MODIFIER_STRENGTH);
-			$event->setDamage(0, EntityDamageEvent::MODIFIER_WEAKNESS);
-			$event->setDamage(0, EntityDamageEvent::MODIFIER_ARMOR);
-			$event->setDamage(0, EntityDamageEvent::MODIFIER_RESISTANCE);
-		}elseif($formerHealth > 20){
-			$event->setDamage($event->getFinalDamage() - ($formerHealth - 20));
-		}
-
+		$event->setDamage(0);
+		$event->setDamage(0, EntityDamageEvent::MODIFIER_STRENGTH);
+		$event->setDamage(0, EntityDamageEvent::MODIFIER_WEAKNESS);
+		$event->setDamage(0, EntityDamageEvent::MODIFIER_ARMOR);
+		$event->setDamage(0, EntityDamageEvent::MODIFIER_RESISTANCE);
 	}
 
 	public function onPlayerDeath(PlayerDeathEvent $event){
 		if(!$this->isValidPlayer($event->getEntity())) return;
+		$event->getEntity()->teleport($this->getServer()->getDefaultLevel()->getSpawnLocation());
 		$rpgPlayer = $this->players[$event->getEntity()->getName()];
 
-		$rpgPlayer->health = $rpgPlayer->getFinalValue(Status::MAX_HP);
+		$rpgPlayer->setHealth($rpgPlayer->getFinalValue(Status::MAX_HP));
 		$rpgPlayer->mana = $rpgPlayer->getFinalValue(Status::MAX_MP);
+
+		$rpgPlayer->getStatus()->setXp($rpgPlayer->getStatus()->getXp() * (4 / 5));
 
 		$drops = [];
 		$this->respawnAdd[$event->getEntity()->getName()] = [];
@@ -421,17 +428,10 @@ class ToAruPG extends UpdatePlugin implements Listener{
 
 	public function heal(){
 		foreach($this->players as $playerName => $rpgPlayer){
-			$hp = $rpgPlayer->health + ($rpgPlayer->getFinalValue(Status::MAX_HP) / 10);
+			$hp = $rpgPlayer->getHealth() + ($rpgPlayer->getFinalValue(Status::MAX_HP) / 10);
 			$mp = $rpgPlayer->mana + ($rpgPlayer->getFinalValue(Status::MAX_MP) / 10);
 			$rpgPlayer->mana = ($mp > $rpgPlayer->getFinalValue(Status::MAX_MP)) ? $rpgPlayer->getFinalValue(Status::MAX_MP) : $mp;
-			$rpgPlayer->health = ($hp > $rpgPlayer->getFinalValue(Status::MAX_HP)) ? $rpgPlayer->getFinalValue(Status::MAX_HP) : $hp;
-			if($rpgPlayer->getPlayer()->getHealth() < 20){
-				if($rpgPlayer->health >= 20){
-					$rpgPlayer->getPlayer()->setHealth(20);
-				}else{
-					$rpgPlayer->getPlayer()->setHealth($rpgPlayer->health);
-				}
-			}
+			$rpgPlayer->setHealth(($hp > $rpgPlayer->getFinalValue(Status::MAX_HP)) ? $rpgPlayer->getFinalValue(Status::MAX_HP) : $hp);
 		}
 	}
 
@@ -439,7 +439,7 @@ class ToAruPG extends UpdatePlugin implements Listener{
 		foreach($this->players as $name => $rpg){
 			$text = self::getTranslation("LV").".".$rpg->getStatus()->level." ".self::getTranslation($rpg->getCurrentJob()->getName())."\n".
 				TextFormat::RED.
-				$this->drawProgress($rpg->health, $rpg->getFinalValue(Status::MAX_HP), 30, self::getTranslation("HP"), TextFormat::RED, TextFormat::GRAY)."\n".
+				$this->drawProgress($rpg->getHealth(), $rpg->getFinalValue(Status::MAX_HP), 30, self::getTranslation("HP"), TextFormat::RED, TextFormat::GRAY)."\n".
 				TextFormat::BLUE.
 				$this->drawProgress($rpg->mana, $rpg->getFinalValue(Status::MAX_MP), 30, self::getTranslation("MP"), TextFormat::BLUE, TextFormat::GRAY);
 
@@ -538,5 +538,9 @@ class ToAruPG extends UpdatePlugin implements Listener{
 
 	public function getPluginYamlURL(){
 		return "https://raw.githubusercontent.com/HelloWorld017/ToAruPG/master/plugin.yml";
+	}
+
+	public static function randomizeDamage($baseDamage, $approximation){
+		return $baseDamage + mt_rand(-$approximation, $approximation);
 	}
 }

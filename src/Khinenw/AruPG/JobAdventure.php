@@ -23,4 +23,11 @@ class JobAdventure implements Job{
 		return $player->getAdditionalValue(Status::STR);
 	}
 
+	public static function getApproximation(RPGPlayer $player){
+		return $player->getStatus()->level;
+	}
+
+	public static function getFinalDamage(RPGPlayer $player){
+		ToAruPG::randomizeDamage(self::getBaseDamage($player) + self::getAdditionalBaseDamage($player), self::getApproximation($player));
+	}
 }

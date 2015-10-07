@@ -2,14 +2,9 @@
 
 namespace Khinenw\AruPG;
 
-class JobAdventure implements Job{
-	public static function getName(){
-		return "ADVENTURER";
-	}
-
-	public static function getId(){
-		return 0;
-	}
+class JobAdventure extends JobBase{
+	const ID = 0;
+	const NAME = "ADVENTURER";
 
 	public static function getSkills(){
 		return [];
@@ -25,9 +20,5 @@ class JobAdventure implements Job{
 
 	public static function getApproximation(RPGPlayer $player){
 		return $player->getStatus()->level;
-	}
-
-	public static function getFinalDamage(RPGPlayer $player){
-		ToAruPG::randomizeDamage(self::getBaseDamage($player) + self::getAdditionalBaseDamage($player), self::getApproximation($player));
 	}
 }

@@ -9,6 +9,7 @@ use Khinenw\AruPG\event\skill\SkillStatusResetEvent;
 use Khinenw\AruPG\event\status\ArmorChangeEvent;
 use Khinenw\AruPG\event\status\PlayerLevelupEvent;
 use pocketmine\entity\Attribute;
+use pocketmine\event\player\PlayerInteractEvent;
 use pocketmine\item\Item;
 use pocketmine\level\sound\AnvilUseSound;
 use pocketmine\network\protocol\UpdateAttributesPacket;
@@ -26,10 +27,13 @@ class RPGPlayer{
 	private $skillStatus;
 	public $mana;
 	private $health;
+	private $isArmed;
+    public $meta = [];
 
 	const MAX_LEVEL = 100;
 
 	public function __construct(Player $player, array $skills = [], $job = 0, array $status = [], $mana = -1, $health = -1){
+        $this->isArmed = true;
 		$this->player = $player;
 
 		$this->job = JobManager::getJob($job);
@@ -70,6 +74,18 @@ class RPGPlayer{
 		}
 
 		$this->notifyXP();
+
+        if(ToAruPG::getConfiguration("remove-hunger", false)){
+            $hungerAttribute = Attribute::getAttribute(ToAruPG::ATTRIBUTE_HUNGER)->setValue(0)->setMaxValue(0);
+
+            $pk = new UpdateAttributesPacket();
+            $pk->entityId = 0;
+            $pk->entries = [
+                $hungerAttribute
+            ];
+
+            $this->getPlayer()->dataPacket($pk);
+        }
 	}
 
 	public function getSkillByItem(Item $item){
@@ -95,8 +111,31 @@ class RPGPlayer{
 		return array_key_exists($item->getId().";".$item->getDamage(), $this->skills) ? $this->skills[$item->getId().";".$item->getDamage()] : null;
 	}
 
+    public function arm(){
+        $this->isArmed = true;
+    }
+
+    public function disarm(){
+        $this->isArmed = false;
+    }
+
+    public function useSkill(Skill $skill, PlayerInteractEvent $event){
+        if(!$this->isArmed) return false;
+
+        if($this->mana >= $skill->getRequiredMana()){
+            if($skill->onActiveUse($event)){
+                $this->mana -= $skill->getRequiredMana();
+                return true;
+            }
+        }else{
+            $this->getPlayer()->sendMessage(TextFormat::RED.ToAruPG::getTranslation("NO_MANA"));
+        }
+
+        return false;
+    }
+
 	public function acquireSkill(Skill $skill){
-		$skillAcquireEvent = new SkillAcquireEvent(ToAruPG::getInstance(), $skill);
+		$skillAcquireEvent = new SkillAcquireEvent(ToAruPG::getInstance(), $skill, $this);
 		Server::getInstance()->getPluginManager()->callEvent($skillAcquireEvent);
 		$skill->setPlayer($this);
 
@@ -112,6 +151,42 @@ class RPGPlayer{
 	}
 
 	public function changeJob(Job $job){
+        $changelist = ToAruPG::getConfiguration("job-changeable", [
+            "default" => false,
+            "0>" => true
+        ]);
+
+        /*
+         * default: false //the highest entry has the lowest priority
+         * >72 : true //a>b means changing job from a to b
+         * 0>72 : false //job whose id is 0 cannot be changed to job who id is 72
+         * 2> : false //job whose id is 2 cannot be changed to any jobs.
+         */
+
+        $changeable = true;
+        foreach($changelist as $jobEntry => $jobChangeable){
+            if($jobEntry === "default"){
+                $changeable = $jobChangeable;
+                continue;
+            }
+
+            $jobEntries = explode(">", $jobEntry, 2);
+
+            if($jobEntries[0] === $this->job->getId()){
+                if(count($jobEntries) >= 2){
+                    if($jobEntries[1] === $job->getId()){
+                        $changeable = $jobChangeable;
+                    }
+                }else{
+                    $changeable = $jobChangeable;
+                }
+            }else if($jobEntries[0] === $job->getId() && $jobEntry{0} === ">"){
+                $changeable = $jobChangeable;
+            }
+        }
+
+        if(!$changeable) return;
+
 		$jobChangeEvent = new JobChangeEvent(ToAruPG::getInstance(), $this->job, $job);
 		Server::getInstance()->getPluginManager()->callEvent($jobChangeEvent);
 
@@ -131,6 +206,23 @@ class RPGPlayer{
 		$this->getStatus()->ap = $this->getStatus()->level * 5;
 		$this->resetSkillStatus();
 	}
+
+    public function forceChangeJob(Job $job){
+        $this->job = $job;
+
+        foreach($this->skills as $item => $skill){
+            Server::getInstance()->getPluginManager()->callEvent(new SkillDiscardEvent(ToAruPG::getInstance(), $skill));
+            unset($this->skills[$item]);
+        }
+
+        $level = $this->getStatus()->level;
+        $this->status = new PlayerStatus([], $this);
+
+        $this->status->level = $level;
+        $this->getStatus()->sp = $this->getStatus()->level * 3;
+        $this->getStatus()->ap = $this->getStatus()->level * 5;
+        $this->resetSkillStatus();
+    }
 
 	public function resetSkillStatus(){
 		$this->skillStatus = new Status([]);
@@ -240,6 +332,14 @@ class RPGPlayer{
 		return $this->job;
 	}
 
+    public function writeMeta($key, $value){
+        $this->meta[$key] = $value;
+    }
+
+    public function getMeta($key){
+        return $this->meta[$key];
+    }
+
 	public function getSaveData(){
 		$saveData = [
 			"skill" => [],
@@ -247,7 +347,8 @@ class RPGPlayer{
 			"mana" => $this->mana,
 			"armorStatus" => $this->armorStatus->getSaveData(),
 			"status" => $this->status->getSaveData(),
-			"health" => $this->health
+			"health" => $this->health,
+            "meta" => $this->meta
 		];
 
 		/**
@@ -263,6 +364,7 @@ class RPGPlayer{
 	public static function getFromSaveData(Player $player, array $saveData){
 		$rpgPlayer = new self($player, $saveData["skill"], $saveData["job"], $saveData["status"], $saveData["mana"], $saveData["health"]);
 		$rpgPlayer->setArmorStatus(new Status($saveData["armorStatus"]));
+        $rpgPlayer->meta = $saveData["meta"];
 		return $rpgPlayer;
 	}
 

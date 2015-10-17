@@ -29,6 +29,7 @@
 
 namespace Khinenw\AruPG;
 
+use Khinenw\AruPG\event\skill\SkillAcquireEvent;
 use Khinenw\AruPG\event\status\StatusInvestEvent;
 use Khinenw\AruPG\task\AutoSaveTask;
 use Khinenw\AruPG\task\HealTask;
@@ -37,6 +38,7 @@ use Khinenw\XcelUpdater\UpdatePlugin;
 use Khinenw\XcelUpdater\XcelUpdater;
 use pocketmine\command\Command;
 use pocketmine\command\CommandSender;
+use pocketmine\entity\Attribute;
 use pocketmine\event\block\BlockPlaceEvent;
 use pocketmine\event\entity\EntityDamageEvent;
 use pocketmine\event\Listener;
@@ -50,7 +52,6 @@ use pocketmine\event\player\PlayerQuitEvent;
 use pocketmine\event\player\PlayerRespawnEvent;
 use pocketmine\item\Item;
 use pocketmine\Player;
-use pocketmine\Server;
 use pocketmine\utils\Config;
 use pocketmine\utils\TextFormat;
 
@@ -58,6 +59,8 @@ class ToAruPG extends UpdatePlugin implements Listener{
 	private static $instance = null;
 
 	private static $translation = [];
+
+    private static $configuration = [];
 
 	private $respawnAdd = [];
 
@@ -68,6 +71,8 @@ class ToAruPG extends UpdatePlugin implements Listener{
 	 */
 	private $players;
 
+    const ATTRIBUTE_HUNGER = 72;
+
 	/**
 	 * @return ToAruPG
 	 */
@@ -77,27 +82,31 @@ class ToAruPG extends UpdatePlugin implements Listener{
 
 	public function onEnable(){
 		@mkdir($this->getDataFolder());
-		self::$instance = $this;
+
+        self::$instance = $this;
 		self::$translation = (new Config($this->getDataFolder()."translation.yml", Config::YAML, yaml_parse(stream_get_contents($this->getResource("translation.yml")))))->getAll();
-		self::$pvpEnabled = $this->getServer()->getConfigBoolean("pvp");
+        self::$configuration = (new Config($this->getDataFolder()."config.yml", Config::YAML))->getAll();
+		self::$pvpEnabled = self::getConfiguration("pvp-enabled", false);
+
 		XcelUpdater::chkUpdate($this);
-		$this->players = [];
-		JobManager::registerJob(new JobAdventure());
-		$this->getServer()->getScheduler()->scheduleRepeatingTask(new HealTask($this), 1200);
+
+        $this->players = [];
+        JobManager::registerJob(new JobAdventure());
+
+        $this->getServer()->getScheduler()->scheduleRepeatingTask(new HealTask($this), 1200);
 		$this->getServer()->getScheduler()->scheduleRepeatingTask(new UITask($this), 15);
 		$this->getServer()->getPluginManager()->registerEvents($this, $this);
 
-		if(!is_file($this->getDataFolder()."autosave.dat")){
-			file_put_contents($this->getDataFolder()."autosave.dat", 10);
-		}
-
-		$autoSaveTerm = file_get_contents($this->getDataFolder()."autosave.dat");
+		$autoSaveTerm = self::getConfiguration("auto-save", 10);
 
 		if($autoSaveTerm < 0){
 			$this->getLogger()->alert(TextFormat::YELLOW."Auto save turned-off!");
 		}else{
 			$this->getServer()->getScheduler()->scheduleRepeatingTask(new AutoSaveTask($this), $autoSaveTerm * 60 * 20);
 		}
+
+        Attribute::addAttribute(self::ATTRIBUTE_HUNGER, "player.huger", 0, 20, 20, true);
+
 	}
 
 	public function onDisable(){
@@ -394,13 +403,7 @@ class ToAruPG extends UpdatePlugin implements Listener{
 			 * @var $skill Skill
 			 */
 			if($skill !== null){
-				if($player->mana >= $skill->getRequiredMana()){
-					if($skill->onActiveUse($event)){
-						$player->mana -= $skill->getRequiredMana();
-					}
-				}else{
-					$player->getPlayer()->sendMessage(TextFormat::RED.self::getTranslation("NO_MANA"));
-				}
+				$player->useSkill($skill, $event);
 			}
 		}
 	}
@@ -414,6 +417,10 @@ class ToAruPG extends UpdatePlugin implements Listener{
 	}
 
 	public function onPlayerItemHeld(PlayerItemHeldEvent $event){
+        if(isset($event->getItem()->getNamedTag()["Desc"])){
+            $event->getPlayer()->sendPopup($event->getItem()->getNamedTag()["Desc"], $event->getItem()->getCustomName());
+        }
+
 		if($this->isValidPlayer($event->getPlayer())){
 			$player = $this->players[$event->getPlayer()->getName()];
 			$skill = $player->getSkillByItem($event->getItem());
@@ -424,6 +431,10 @@ class ToAruPG extends UpdatePlugin implements Listener{
 				$event->getPlayer()->sendPopup(TextFormat::AQUA . self::getTranslation("LV").".".$skill->getLevel()." ".self::getTranslation($skill->getName()));
 			}
 		}
+	}
+
+	public function onSkillAcquire(SkillAcquireEvent $event){
+		$event->setCancelled(!$event->getSkill()->canBeAcquired($event->getPlayer()));
 	}
 
 	public function heal(){
@@ -483,6 +494,19 @@ class ToAruPG extends UpdatePlugin implements Listener{
 
 		return $translation;
 	}
+
+    public static function getConfiguration($key, $defaultValue){
+        if(!isset(self::$configuration[$key])){
+            self::$configuration[$key] = $defaultValue;
+            $conf = new Config(self::getInstance()->getDataFolder()."config.yml", Config::YAML);
+            $conf->setAll(self::$configuration);
+            $conf->save();
+
+            return $defaultValue;
+        }else{
+            return self::$configuration[$key];
+        }
+    }
 
 	public function getRPGPlayerByName($player){
 		if($player instanceof Player){

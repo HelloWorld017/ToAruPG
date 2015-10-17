@@ -50,9 +50,7 @@ class ItemHelper{
         $classData = self::$ITEM_CLASS[$class];
         $item->setCustomName($classData["COLOR"] . ToAruPG::getTranslation($classData["TID"]) . $name);
 
-        $tag = $item->getNamedTag();
-        $tag["type"] = new String("Desc", $desc);
-        $item->setNamedTag($tag);
+        $item->getNamedTag()->desc = new String("desc", $desc);
 
         return $item;
     }

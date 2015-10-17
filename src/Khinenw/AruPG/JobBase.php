@@ -7,11 +7,11 @@ abstract class JobBase implements Job{
 	const NAME = "JOB";
 
 	public static function getId(){
-		return self::ID;
+		return static::ID;
 	}
 
 	public static function getName(){
-		return self::NAME;
+		return static::NAME;
 	}
 
 	public static function getFinalDamage(RPGPlayer $player){

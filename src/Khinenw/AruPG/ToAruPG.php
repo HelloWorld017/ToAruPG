@@ -417,7 +417,7 @@ class ToAruPG extends UpdatePlugin implements Listener{
 	}
 
 	public function onPlayerItemHeld(PlayerItemHeldEvent $event){
-        if(isset($event->getItem()->getNamedTag()["Desc"])){
+        if($event->getItem()->hasCompoundTag() && isset($event->getItem()->getNamedTag()->desc)){
             $event->getPlayer()->sendPopup($event->getItem()->getNamedTag()["Desc"], $event->getItem()->getCustomName());
         }
 

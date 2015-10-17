@@ -27,15 +27,15 @@ abstract class SkillBase implements Skill{
 	}
 
 	public static function getId(){
-		return self::ID;
+		return static::ID;
 	}
 
 	public static function getRequiredLevel(){
-		return self::REQ_LEV;
+		return static::REQ_LEV;
 	}
 
 	public static function getName(){
-		return self::NAME;
+		return static::NAME;
 	}
 
 	public function getLevel(){

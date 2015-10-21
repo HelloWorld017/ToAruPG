@@ -58,7 +58,7 @@ class RPGPlayer{
 		]);
 
 		$this->mana = ($mana === -1) ? $this->getFinalValue(Status::MAX_MP) : $mana;
-		$this->health = ($health === -1) ? $health : $this->getFinalValue(Status::MAX_HP);
+		$this->health = ($health === -1) ? $this->getFinalValue(Status::MAX_HP) : $health;
 
 		$this->skills = [];
 		foreach($skills as $skillTag){
@@ -76,17 +76,17 @@ class RPGPlayer{
 		$this->notifyXP();
 
         if(ToAruPG::getConfiguration("remove-hunger", false)){
-            $hungerAttribute = Attribute::getAttribute(ToAruPG::ATTRIBUTE_HUNGER)->setValue(0)->setMaxValue(0);
-
-            $pk = new UpdateAttributesPacket();
-            $pk->entityId = 0;
-            $pk->entries = [
-                $hungerAttribute
-            ];
-
-            $this->getPlayer()->dataPacket($pk);
+            $this->sendAttribute(Attribute::getAttribute(ToAruPG::ATTRIBUTE_HUNGER)->setValue(0)->setMaxValue(0));
         }
 	}
+
+	public function sendAttribute(Attribute ...$attributes){
+        $pk = new UpdateAttributesPacket();
+        $pk->entityId = 0;
+        $pk->entries = $attributes;
+
+        $this->getPlayer()->dataPacket($pk);
+    }
 
 	public function getSkillByItem(Item $item){
 		$tag = $item->getId().";".$item->getDamage();
@@ -237,7 +237,7 @@ class RPGPlayer{
 	public function addXp($amount){
 		$this->status->setXp($this->status->getXp() + $amount);
 
-		$needXp = $this->status->level * $this->status->level * 1000 + 1000;
+		$needXp = $this->getNeededXP();
 
 		if($this->status->getXp() > $needXp){
 			if(!$this->levelUp()){
@@ -248,21 +248,15 @@ class RPGPlayer{
 		$this->notifyXP();
 	}
 
+    public function getNeededXP(){
+        return $this->status->level * $this->status->level * 1000 + 1000;
+    }
+
 	public function notifyXP(){
-		$lvAttribute = Attribute::getAttribute(Attribute::EXPERIENCE_LEVEL)->setMaxValue(self::MAX_LEVEL)->setValue($this->getStatus()->level);
-
-		$needXp = $this->status->level * $this->status->level * 1000 + 1000;
-
-		$expAttribute = Attribute::getAttribute(Attribute::EXPERIENCE)->setValue($this->getStatus()->getXp() / $needXp);
-
-		$pk = new UpdateAttributesPacket();
-		$pk->entityId = 0;
-		$pk->entries = [
-			$expAttribute,
-			$lvAttribute
-		];
-
-		$this->getPlayer()->dataPacket($pk);
+        $this->sendAttribute(
+            Attribute::getAttribute(Attribute::EXPERIENCE_LEVEL)->setMaxValue(self::MAX_LEVEL)->setValue($this->getStatus()->level),
+            Attribute::getAttribute(Attribute::EXPERIENCE)->setValue($this->getStatus()->getXp() / $this->getNeededXP())
+        );
 	}
 
 	public function levelUp(){
@@ -296,13 +290,11 @@ class RPGPlayer{
 		if($hp < 0) $hp = 0;
 		if($this->getFinalValue(Status::MAX_HP) < $hp) $hp = $this->getFinalValue(Status::MAX_HP);
 
-		if($this->health < 20){
-			$this->getPlayer()->setHealth(($hp > 20) ? 20 : $hp);
-		}
+        $rhp = min($this->getPlayer()->getMaxHealth(), $hp);
 
-		if($hp < 20){
-			$this->getPlayer()->setHealth($hp);
-		}
+        if($this->getPlayer()->getHealth() !== $rhp && $this->getPlayer()->isAlive()){
+            $this->getPlayer()->setHealth($rhp);
+        }
 
 		$this->health = $hp;
 	}

@@ -1,27 +1,9 @@
 <?php
 
 /*
- * ////////////////API 99.99% Complete////////////////
- * DONE add EXP Packet Sending
- * DONE add Translation
- * DONE add Death Penalty
- * DONE complete Event API
- * WONTFIX add str / 10 -> melee damage
- * DONE add AP, SP Stat
- * DONE add player saving
- * DONE add /skill command : shows description of current holding item
- * DONE add /si command : invest 1 sp to skill whose item is current holding item
- * DONE add ui
- * DONE add mana regeneration
- * DONE add skill level saving
- * WONTFIX remove skill items when finish
- * DONE prevent skill items deleting
- * DONE mana reset when player death
- * DONE add approximation
- *
  * ////////////////External Plugins////////////////
  * WORKING add Dungeon
- * TODO add Potions
+ * WORKING add Potions
  * WORKING add Jobs/Skills
  * DONE add Skill/Job shop
  * TODO add Hestia Knife
@@ -40,6 +22,7 @@ use pocketmine\command\Command;
 use pocketmine\command\CommandSender;
 use pocketmine\entity\Attribute;
 use pocketmine\event\block\BlockPlaceEvent;
+use pocketmine\event\entity\EntityDamageByEntityEvent;
 use pocketmine\event\entity\EntityDamageEvent;
 use pocketmine\event\Listener;
 use pocketmine\event\player\PlayerDeathEvent;
@@ -50,7 +33,10 @@ use pocketmine\event\player\PlayerItemHeldEvent;
 use pocketmine\event\player\PlayerJoinEvent;
 use pocketmine\event\player\PlayerQuitEvent;
 use pocketmine\event\player\PlayerRespawnEvent;
+use pocketmine\event\server\DataPacketSendEvent;
 use pocketmine\item\Item;
+use pocketmine\network\protocol\SetHealthPacket;
+use pocketmine\network\protocol\UpdateAttributesPacket;
 use pocketmine\Player;
 use pocketmine\utils\Config;
 use pocketmine\utils\TextFormat;
@@ -324,17 +310,47 @@ class ToAruPG extends UpdatePlugin implements Listener{
 	public function onEntityDamage(EntityDamageEvent $event){
 		$player = $event->getEntity();
 
-		if(!($player instanceof Player)) return;
+		if(!($player instanceof Player)){
+            if(!($event instanceof EntityDamageByEntityEvent)) return;
+            if($event->getFinalDamage() < $player->getHealth()) return;
+
+            $attacker = $event->getDamager();
+
+            if(!($attacker instanceof Player)) return;
+
+            $attackerPlayer = $this->getRPGPlayerByName($attacker->getName());
+            if($attackerPlayer === null) return;
+
+            $xp = 0;
+            $xpPercentage = 0;
+
+            foreach($this->getConfiguration("kill-exp", ["default" => 10]) as $id => $amount){
+                if($id === "default" || $id === $player::NETWORK_ID){
+                    $xp = $amount;
+                }
+            }
+
+            foreach($this->getConfiguration("kill-exp-percentage", ["default" => 0.01]) as $id => $amount){
+                if($id === "default" || $id === $player::NETWORK_ID){
+                    $xpPercentage = $amount;
+                }
+            }
+
+            $attackerPlayer->addXp($xp + ($attackerPlayer->getNeededXP() * ($xpPercentage / 100)));
+            return;
+        }
+
 		if(!$this->isValidPlayer($player)) return;
 
 		$formerHealth = $this->players[$player->getName()]->getHealth();
+
 		$this->players[$player->getName()]->setHealth($formerHealth - $event->getFinalDamage());
 
-		$event->setDamage(0);
-		$event->setDamage(0, EntityDamageEvent::MODIFIER_STRENGTH);
-		$event->setDamage(0, EntityDamageEvent::MODIFIER_WEAKNESS);
-		$event->setDamage(0, EntityDamageEvent::MODIFIER_ARMOR);
-		$event->setDamage(0, EntityDamageEvent::MODIFIER_RESISTANCE);
+        $event->setDamage(0);
+        $event->setDamage(0, EntityDamageEvent::MODIFIER_STRENGTH);
+        $event->setDamage(0, EntityDamageEvent::MODIFIER_WEAKNESS);
+        $event->setDamage(0, EntityDamageEvent::MODIFIER_ARMOR);
+        $event->setDamage(0, EntityDamageEvent::MODIFIER_RESISTANCE);
 	}
 
 	public function onPlayerDeath(PlayerDeathEvent $event){
@@ -342,8 +358,8 @@ class ToAruPG extends UpdatePlugin implements Listener{
 		$event->getEntity()->teleport($this->getServer()->getDefaultLevel()->getSpawnLocation());
 		$rpgPlayer = $this->players[$event->getEntity()->getName()];
 
-		$rpgPlayer->setHealth($rpgPlayer->getFinalValue(Status::MAX_HP));
-		$rpgPlayer->mana = $rpgPlayer->getFinalValue(Status::MAX_MP);
+		$rpgPlayer->setHealth(1);
+		$rpgPlayer->mana = 0;
 
 		$rpgPlayer->getStatus()->setXp($rpgPlayer->getStatus()->getXp() * (4 / 5));
 
@@ -432,6 +448,24 @@ class ToAruPG extends UpdatePlugin implements Listener{
 			}
 		}
 	}
+
+    public function onDataPacketSend(DataPacketSendEvent $event){
+        $pk = $event->getPacket();
+        if($pk instanceof SetHealthPacket){
+            $attribute = Attribute::getAttribute(Attribute::MAX_HEALTH);
+            $attribute->setMinValue(0)->setMaxValue($event->getPlayer()->getMaxHealth());
+            $attribute->setValue($pk->health);
+
+            $attributePacket = new UpdateAttributesPacket();
+            $attributePacket->entityId = 0;
+            $attributePacket->entries = [
+                $attribute
+            ];
+
+            $event->setCancelled();
+            $event->getPlayer()->dataPacket($attributePacket);
+        }
+    }
 
 	public function onSkillAcquire(SkillAcquireEvent $event){
 		$event->setCancelled(!$event->getSkill()->canBeAcquired($event->getPlayer()));

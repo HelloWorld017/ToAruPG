@@ -191,20 +191,7 @@ class RPGPlayer{
 		Server::getInstance()->getPluginManager()->callEvent($jobChangeEvent);
 
 		if($jobChangeEvent->isCancelled()) return;
-		$this->job = $job;
-
-		foreach($this->skills as $item => $skill){
-			Server::getInstance()->getPluginManager()->callEvent(new SkillDiscardEvent(ToAruPG::getInstance(), $skill));
-			unset($this->skills[$item]);
-		}
-
-		$level = $this->getStatus()->level;
-		$this->status = new PlayerStatus([], $this);
-
-		$this->status->level = $level;
-		$this->getStatus()->sp = $this->getStatus()->level * 3;
-		$this->getStatus()->ap = $this->getStatus()->level * 5;
-		$this->resetSkillStatus();
+		$this->forceChangeJob($job);
 	}
 
     public function forceChangeJob(Job $job){
@@ -215,13 +202,19 @@ class RPGPlayer{
             unset($this->skills[$item]);
         }
 
-        $level = $this->getStatus()->level;
-        $this->status = new PlayerStatus([], $this);
+        if(ToAruPG::getConfiguration("reset-stat", false)){
+            $level = $this->getStatus()->level;
+            $xp = $this->getStatus()->getXp();
+            $this->status = new PlayerStatus([], $this);
 
-        $this->status->level = $level;
-        $this->getStatus()->sp = $this->getStatus()->level * 3;
-        $this->getStatus()->ap = $this->getStatus()->level * 5;
-        $this->resetSkillStatus();
+            $this->status->level = $level;
+            $this->status->setXp($xp);
+            $this->status->setMaxHp($level * 20 + 20);
+            $this->status->maxMp = $level * 100 + 100;
+            $this->getStatus()->sp = $this->getStatus()->level * 3;
+            $this->getStatus()->ap = $this->getStatus()->level * 5;
+            $this->resetSkillStatus();
+        }
     }
 
 	public function resetSkillStatus(){

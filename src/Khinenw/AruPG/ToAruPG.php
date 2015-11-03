@@ -24,6 +24,7 @@ use pocketmine\entity\Attribute;
 use pocketmine\event\block\BlockPlaceEvent;
 use pocketmine\event\entity\EntityDamageByEntityEvent;
 use pocketmine\event\entity\EntityDamageEvent;
+use pocketmine\event\inventory\CraftItemEvent;
 use pocketmine\event\Listener;
 use pocketmine\event\player\PlayerDeathEvent;
 use pocketmine\event\player\PlayerDropItemEvent;
@@ -276,75 +277,105 @@ class ToAruPG extends UpdatePlugin implements Listener{
 				file_put_contents($this->getDataFolder().$sender->getName().".player", json_encode($this->players[$sender->getName()]->getSaveData()));
 				$sender->sendMessage(TextFormat::AQUA.self::getTranslation("SAVED"));
 				break;
+
+            case "loadp":
+                if($this->isValidPlayer($sender)){
+                    $sender->sendMessage(TextFormat::LIGHT_PURPLE.self::getTranslation("ALREADY_VALID"));
+                    return true;
+                }
+
+                if(isset($this->players[$sender->getName()])){
+                    unset($this->players[$sender->getName()]);
+                }
+
+                $this->createPlayer($sender);
+
+                if($this->isValidPlayer($sender)){
+                    $sender->sendMessage(TextFormat::AQUA . self::getTranslation("NOW_VALID"));
+                }else{
+                    $sender->sendMessage(TextFormat::RED . self::getTranslation("CANT_MAKE_VALID"));
+                }
+
+                break;
 		}
 		return true;
 	}
 
 	public function saveAll(){
 		foreach($this->players as $rpg){
-			file_put_contents($this->getDataFolder().$rpg->getPlayer()->getName().".player", json_encode($rpg->getSaveData()));
+			file_put_contents($this->getDataFolder().strtolower($rpg->getPlayer()->getName()).".player", json_encode($rpg->getSaveData()));
 		}
 	}
 
 	public function onPlayerJoin(PlayerJoinEvent $event){
 		if(isset($this->players[$event->getPlayer()->getName()])) return;
-		$dataFile = $this->getDataFolder().$event->getPlayer()->getName().".player";
-
-		if(is_file($dataFile)){
-			$data = json_decode(file_get_contents($dataFile), true);
-			$this->players[$event->getPlayer()->getName()] = RPGPlayer::getFromSaveData($event->getPlayer(),$data);
-		}else{
-			$this->players[$event->getPlayer()->getName()] = new RPGPlayer($event->getPlayer());
-		}
-
-		$event->getPlayer()->setDisplayName(self::getTranslation("LV").".".$this->players[$event->getPlayer()->getName()]->getStatus()->level." ".$event->getPlayer()->getDisplayName());
+		$this->createPlayer($event->getPlayer());
 	}
+
+    public function createPlayer(Player $player){
+        $dataFile = $this->getDataFolder().strtolower($player->getName()).".player";
+
+        if(is_file($this->getDataFolder().$player->getName().".player") && !is_file($dataFile)){
+            rename($this->getDataFolder().$player->getName().".player", $dataFile);
+        }
+
+        if(is_file($dataFile)){
+            $data = json_decode(file_get_contents($dataFile), true);
+            $this->players[$player->getName()] = RPGPlayer::getFromSaveData($player,$data);
+        }else{
+            $this->players[$player->getName()] = new RPGPlayer($player);
+        }
+
+        $player->setDisplayName(self::getTranslation("LV").".".$this->players[$player->getName()]->getStatus()->level." ".$player->getDisplayName());
+    }
 
 	public function onPlayerQuit(PlayerQuitEvent $event){
 		if($this->isValidPlayer($event->getPlayer())){
-			file_put_contents($this->getDataFolder().$event->getPlayer()->getName().".player", json_encode($this->players[$event->getPlayer()->getName()]->getSaveData()));
+			file_put_contents($this->getDataFolder().strtolower($event->getPlayer()->getName()).".player", json_encode($this->players[$event->getPlayer()->getName()]->getSaveData()));
 			unset($this->players[$event->getPlayer()->getName()]);
 		}
 	}
 
 	public function onEntityDamage(EntityDamageEvent $event){
-		$player = $event->getEntity();
+		if($event->isCancelled()) return;
+		$damagedEntity = $event->getEntity();
 
-		if(!($player instanceof Player)){
-            if(!($event instanceof EntityDamageByEntityEvent)) return;
-            if($event->getFinalDamage() < $player->getHealth()) return;
-
+        if($event instanceof EntityDamageByEntityEvent && ($event->getFinalDamage() > $damagedEntity->getHealth())){
             $attacker = $event->getDamager();
+            if($attacker instanceof Player){
+                if($damagedEntity instanceof Player && !self::$pvpEnabled){
+                    $event->setCancelled();
+                    return;
+                }
 
-            if(!($attacker instanceof Player)) return;
+                $attackerPlayer = $this->getRPGPlayerByName($attacker->getName());
+                if($attackerPlayer !== null){
+                    $xp = 0;
+                    $xpPercentage = 0;
 
-            $attackerPlayer = $this->getRPGPlayerByName($attacker->getName());
-            if($attackerPlayer === null) return;
+                    foreach($this->getConfiguration("kill-exp", ["default" => 10]) as $id => $amount){
+                        if($id === "default" || $id === $damagedEntity::NETWORK_ID){
+                            $xp = $amount;
+                        }
+                    }
 
-            $xp = 0;
-            $xpPercentage = 0;
+                    foreach($this->getConfiguration("kill-exp-percentage", ["default" => 0.01]) as $id => $amount){
+                        if($id === "default" || $id === $damagedEntity::NETWORK_ID){
+                            $xpPercentage = $amount;
+                        }
+                    }
 
-            foreach($this->getConfiguration("kill-exp", ["default" => 10]) as $id => $amount){
-                if($id === "default" || $id === $player::NETWORK_ID){
-                    $xp = $amount;
+                    $attackerPlayer->addXp($xp + ($attackerPlayer->getNeededXP() * ($xpPercentage / 100)));
                 }
             }
-
-            foreach($this->getConfiguration("kill-exp-percentage", ["default" => 0.01]) as $id => $amount){
-                if($id === "default" || $id === $player::NETWORK_ID){
-                    $xpPercentage = $amount;
-                }
-            }
-
-            $attackerPlayer->addXp($xp + ($attackerPlayer->getNeededXP() * ($xpPercentage / 100)));
-            return;
         }
 
-		if(!$this->isValidPlayer($player)) return;
+        if(!($damagedEntity instanceof Player)) return;
+		if(!$this->isValidPlayer($damagedEntity)) return;
 
-		$formerHealth = $this->players[$player->getName()]->getHealth();
+		$formerHealth = $this->players[$damagedEntity->getName()]->getHealth();
 
-		$this->players[$player->getName()]->setHealth($formerHealth - $event->getFinalDamage());
+		$this->getRPGPlayerByName($damagedEntity->getName())->setHealth($formerHealth - $event->getFinalDamage());
 
         $event->setDamage(0);
         $event->setDamage(0, EntityDamageEvent::MODIFIER_STRENGTH);
@@ -392,6 +423,18 @@ class ToAruPG extends UpdatePlugin implements Listener{
 			$player->notifyXP();
 		}
 	}
+
+    public function onCraftItem(CraftItemEvent $event){
+        $craftingPlayer = $this->getRPGPlayerByName($event->getPlayer());
+        foreach($event->getInput() as $item){
+            if($craftingPlayer->getSkillByItem($item) !== null){
+                if(!$craftingPlayer->getPlayer()->getInventory()->contains(Item::get($item->getId(), $item->getDamage(), $item->getCount() + 1))){
+                    $event->setCancelled();
+                    return;
+                }
+            }
+        }
+    }
 
 	public function onPlayerItemDrop(PlayerDropItemEvent $event){
 		if(!$this->isValidPlayer($event->getPlayer())) return;

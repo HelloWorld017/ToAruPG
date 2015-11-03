@@ -78,7 +78,7 @@ commands:
     description: "Adds a translation."
     usage: "/addtrans"
     permission: toarupg.addtrans
-
+    
   loadp:
     description: "Loads invalid player."
     usage: "/loadp"

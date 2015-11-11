@@ -1,6 +1,6 @@
 name: "TAPGAPI"
 author: Khinenw
-version: 0.1.1 beta prerelease
+version: 0.1.2 beta prerelease
 description: "An open-source project of API of RPG minigame [To aru PG]."
 main: Khinenw\AruPG\ToAruPG
 api: 1.12.0
@@ -78,7 +78,7 @@ commands:
     description: "Adds a translation."
     usage: "/addtrans"
     permission: toarupg.addtrans
-    
+
   loadp:
     description: "Loads invalid player."
     usage: "/loadp"

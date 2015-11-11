@@ -22,6 +22,7 @@ DEX: "DEX"
 LUK: "LUK"
 ADVENTURER: Adventurer
 NO_MANA: "Insufficient Mana!"
+SKILL_COOLING: "Please wait for a second!"
 TRANSLATION_FILE_DOESNT_EXIST: "Translation file doesn't exist!"
 CANNOT_INVEST_SP: "Couldn't invest SP!"
 SAVED: "Successfully Saved!"

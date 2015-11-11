@@ -2,7 +2,12 @@
 
 namespace Khinenw\AruPG;
 
+use pocketmine\item\Item;
+
 class SkillManager{
+    /**
+     * @var Skill[]
+     */
 	private static $skills = [];
 
 	/**
@@ -35,5 +40,21 @@ class SkillManager{
 	 */
 	public static function getSkill($skillId){
 		return isset(self::$skills[$skillId]) ? (clone self::$skills[$skillId]) : null;
+	}
+
+
+	/**
+	 * @method Skill[] getSkill(int $skillId) gets skill by its item.
+	 * @param Item $item The item of skill which you want to get.
+	 * @return Skill[] It returns array of skills.
+	 */
+	public static function getSkillByItem(Item $item){
+        $skills = [];
+        foreach(self::$skills as $skill){
+            if($skill->getItem() !== null && $skill->getItem()->deepEquals($item, true, false)){
+                $skills[] = $skill;
+            }
+        }
+		return $skills;
 	}
 }

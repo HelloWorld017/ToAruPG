@@ -25,6 +25,8 @@ use pocketmine\event\block\BlockPlaceEvent;
 use pocketmine\event\entity\EntityDamageByEntityEvent;
 use pocketmine\event\entity\EntityDamageEvent;
 use pocketmine\event\inventory\CraftItemEvent;
+use pocketmine\event\inventory\FurnaceBurnEvent;
+use pocketmine\event\inventory\FurnaceSmeltEvent;
 use pocketmine\event\Listener;
 use pocketmine\event\player\PlayerDeathEvent;
 use pocketmine\event\player\PlayerDropItemEvent;
@@ -35,6 +37,10 @@ use pocketmine\event\player\PlayerJoinEvent;
 use pocketmine\event\player\PlayerQuitEvent;
 use pocketmine\event\player\PlayerRespawnEvent;
 use pocketmine\event\server\DataPacketSendEvent;
+use pocketmine\inventory\BigShapedRecipe;
+use pocketmine\inventory\BigShapelessRecipe;
+use pocketmine\inventory\ShapedRecipe;
+use pocketmine\inventory\ShapelessRecipe;
 use pocketmine\item\Item;
 use pocketmine\network\protocol\SetHealthPacket;
 use pocketmine\network\protocol\UpdateAttributesPacket;
@@ -425,15 +431,61 @@ class ToAruPG extends UpdatePlugin implements Listener{
 	}
 
     public function onCraftItem(CraftItemEvent $event){
+        /**
+         * @var $player Player
+         */
+        $player = $event->getPlayer();
+
         $craftingPlayer = $this->getRPGPlayerByName($event->getPlayer());
-        foreach($event->getInput() as $item){
-            if($craftingPlayer->getSkillByItem($item) !== null){
-                if(!$craftingPlayer->getPlayer()->getInventory()->contains(Item::get($item->getId(), $item->getDamage(), $item->getCount() + 1))){
-                    $event->setCancelled();
-                    return;
+        if($craftingPlayer === null){
+            $player->sendMessage(TextFormat::RED . self::getTranslation("INVALID_PLAYER"));
+            $event->setCancelled();
+            return;
+        }
+
+        $recipe = $event->getRecipe();
+
+        if($recipe instanceof ShapelessRecipe){
+            foreach($recipe->getIngredientList() as $item){
+                echo $item->getName() . "x" . $item->getCount();
+                if($craftingPlayer->getSkillByItem($item) !== null){
+                    if(!$player->getInventory()->contains(Item::get($item->getId(), $item->getDamage(), $item->getCount() + 1))){
+                        echo "cancelledEvent";
+                        $event->setCancelled();
+                        return;
+                    }
                 }
             }
         }
+
+        if($recipe instanceof ShapedRecipe){
+            foreach($recipe->getIngredientMap() as $items){
+                /**
+                 * @var $item Item
+                 */
+                foreach($items as $item){
+                    if($craftingPlayer->getSkillByItem($item) !== null){
+                        if(!$player->getInventory()->contains(Item::get($item->getId(), $item->getDamage(), $item->getCount() + 1))){
+                            $event->setCancelled();
+
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public function onFurnaceBurn(FurnaceBurnEvent $event){
+        $fuelSkill = SkillManager::getSkillByItem($event->getFuel());
+
+        if(count($fuelSkill) > 0) $event->setCancelled();
+    }
+
+    public function onFurnaceSmelt(FurnaceSmeltEvent $event){
+        $itemSkill = SkillManager::getSkillByItem($event->getSource());
+
+        if(count($itemSkill) > 0) $event->setCancelled();
     }
 
 	public function onPlayerItemDrop(PlayerDropItemEvent $event){

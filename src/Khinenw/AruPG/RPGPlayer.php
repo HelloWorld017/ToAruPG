@@ -29,6 +29,7 @@ class RPGPlayer{
 	private $health;
 	private $isArmed;
     public $meta = [];
+	private $finalUse;
 
 	const MAX_LEVEL = 100;
 
@@ -75,6 +76,7 @@ class RPGPlayer{
 
 		$this->notifyXP();
 
+        $this->finalUse = 0;
         if(ToAruPG::getConfiguration("remove-hunger", false)){
             $this->sendAttribute(Attribute::getAttribute(ToAruPG::ATTRIBUTE_HUNGER)->setValue(0)->setMaxValue(0));
         }
@@ -122,9 +124,15 @@ class RPGPlayer{
     public function useSkill(Skill $skill, PlayerInteractEvent $event){
         if(!$this->isArmed) return false;
 
+        if($this->finalUse + floatval(ToAruPG::getConfiguration("cool-time", 1)) > microtime(true)){
+            $this->getPlayer()->sendMessage(TextFormat::RED.ToAruPG::getTranslation("SKILL_COOLING"));
+            return false;
+        }
+
         if($this->mana >= $skill->getRequiredMana()){
             if($skill->onActiveUse($event)){
                 $this->mana -= $skill->getRequiredMana();
+                $this->finalUse = microtime(true);
                 return true;
             }
         }else{

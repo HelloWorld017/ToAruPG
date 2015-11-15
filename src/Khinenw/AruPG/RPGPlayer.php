@@ -159,6 +159,12 @@ class RPGPlayer{
 	}
 
 	public function changeJob(Job $job){
+        if($this->canChangeJob($job)) $this->forceChangeJob($job);
+	}
+
+	public function canChangeJob(Job $job){
+        if($this->job->getId() === $job->getId()) return false;
+
         $changelist = ToAruPG::getConfiguration("job-changeable", [
             "default" => false,
             "0>" => true
@@ -193,13 +199,14 @@ class RPGPlayer{
             }
         }
 
-        if(!$changeable) return;
+        if(!$changeable) return false;
 
-		$jobChangeEvent = new JobChangeEvent(ToAruPG::getInstance(), $this->job, $job);
-		Server::getInstance()->getPluginManager()->callEvent($jobChangeEvent);
+        $jobChangeEvent = new JobChangeEvent(ToAruPG::getInstance(), $this->job, $job);
+        Server::getInstance()->getPluginManager()->callEvent($jobChangeEvent);
 
-		if($jobChangeEvent->isCancelled()) return;
-		$this->forceChangeJob($job);
+        if($jobChangeEvent->isCancelled()) return false;
+
+        return true;
 	}
 
     public function forceChangeJob(Job $job){

@@ -1,6 +1,6 @@
 name: "TAPGAPI"
 author: Khinenw
-version: 0.1.2 beta prerelease
+version: "0.1.2.1 beta prerelease"
 description: "An open-source project of API of RPG minigame [To aru PG]."
 main: Khinenw\AruPG\ToAruPG
 api: 1.12.0
